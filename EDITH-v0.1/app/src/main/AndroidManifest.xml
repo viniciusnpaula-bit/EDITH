@@ -8,6 +8,8 @@
 
     <!-- Necessário no Android 11+ para descobrir/abrir os apps instalados -->
     <queries>
+        <!-- Visibilidade explícita do Spotify no Android 11+ -->
+        <package android:name="com.spotify.music" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
