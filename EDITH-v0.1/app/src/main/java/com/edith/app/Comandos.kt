@@ -94,32 +94,57 @@ class Comandos(
         val escolhido = porNome ?: porPacote
             ?: return "Não achei nenhum app chamado \"$nomeBruto\". Instalados: ${nomesApps(12)}"
 
-        // Em alguns aparelhos, getLaunchIntentForPackage() retorna null mesmo
-        // quando o app aparece na consulta de atividades. Use a Activity launcher
-        // encontrada pelo PackageManager e abra-a explicitamente.
         val pm = activity.packageManager
+        val pacote = escolhido.second
+        val flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+
+        // 1) Preferir o intent oficial de abertura fornecido pelo próprio Android.
+        val launchIntent = pm.getLaunchIntentForPackage(pacote)
+        if (launchIntent != null) {
+            try {
+                launchIntent.addFlags(flags)
+                activity.startActivity(launchIntent)
+                return "Abrindo ${escolhido.first}."
+            } catch (_: Exception) {
+                // Tentar a resolução pelo launcher abaixo.
+            }
+        }
+
+        // 2) Resolver uma atividade launcher limitada ao pacote selecionado.
+        val intentPacote = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            setPackage(pacote)
+            addFlags(flags)
+        }
+        try {
+            if (intentPacote.resolveActivity(pm) != null) {
+                activity.startActivity(intentPacote)
+                return "Abrindo ${escolhido.first}."
+            }
+        } catch (_: Exception) {
+            // Última tentativa: componente explícito.
+        }
+
+        // 3) Último recurso: abrir a Activity launcher explicitamente.
         val launcher = pm.queryIntentActivities(
             Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
             0
-        ).firstOrNull { it.activityInfo.packageName == escolhido.second }
-            ?: return "Encontrei ${escolhido.first}, mas não achei uma tela inicial que o Android possa abrir."
-
-        val intent = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-            component = android.content.ComponentName(
-                launcher.activityInfo.packageName,
-                launcher.activityInfo.name
-            )
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
-        }
+        ).firstOrNull { it.activityInfo.packageName == pacote }
+            ?: return "Encontrei ${escolhido.first}, mas o Android não disponibilizou uma tela inicial para ele."
 
         return try {
-            activity.startActivity(intent)
+            val explicito = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+                component = android.content.ComponentName(
+                    launcher.activityInfo.packageName,
+                    launcher.activityInfo.name
+                )
+                addFlags(flags)
+            }
+            activity.startActivity(explicito)
             "Abrindo ${escolhido.first}."
-        } catch (e: android.content.ActivityNotFoundException) {
-            "O Android não conseguiu abrir ${escolhido.first}. Tente abrir pelo ícone do aparelho."
-        } catch (e: SecurityException) {
-            "O Android bloqueou a abertura de ${escolhido.first}."
+        } catch (e: Exception) {
+            "Não consegui abrir ${escolhido.first}: ${e.message ?: e.javaClass.simpleName}. Confira se o app está instalado e habilitado."
         }
     }
 
