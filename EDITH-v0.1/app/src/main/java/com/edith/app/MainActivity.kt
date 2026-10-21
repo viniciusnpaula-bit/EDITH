@@ -31,10 +31,13 @@ import java.util.Locale
 
 class MainActivity : Activity() {
     private val history = JSONArray()
-    private lateinit var log: TextView
+    private lateinit var chatList: LinearLayout
     private lateinit var scroll: ScrollView
     private lateinit var input: EditText
     private lateinit var micBtn: Button
+    private lateinit var sendBtn: Button
+    private lateinit var statusDot: View
+    private lateinit var thinkingView: TextView
     private var speechRecognizer: SpeechRecognizer? = null
     private var listening = false
     private var tts: TextToSpeech? = null
@@ -80,69 +83,107 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val match = ViewGroup.LayoutParams.MATCH_PARENT
-        val wrap = ViewGroup.LayoutParams.WRAP_CONTENT
+        window.statusBarColor = Color.parseColor("#05070D")
+        window.navigationBarColor = Color.parseColor("#05070D")
+        window.decorView.systemUiVisibility = 0
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 64, 24, 24)
-            setBackgroundColor(Color.parseColor("#0B1220"))
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            setBackgroundColor(Color.parseColor("#05070D"))
+        }
+        root.setOnApplyWindowInsetsListener { view, insets ->
+            view.setPadding(dp(16), dp(12), dp(16), dp(12))
+            insets
         }
 
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(8), 0, dp(16))
         }
-        val title = TextView(this).apply {
-            text = "EDITH v0.3.0"
-            textSize = 24f
-            setTextColor(Color.parseColor("#4FC3F7"))
-            layoutParams = LinearLayout.LayoutParams(0, wrap, 1f)
-        }
-        val upgradeBtn = Button(this).apply {
-            text = "⟳"
-            contentDescription = "Procurar atualização da EDITH"
-            setOnClickListener {
-                escrever("Você", "⟳ procura atualização")
-                verificarAtualizacao()
+        statusDot = View(this).apply {
+            background = forma("#35D6E8", 99)
+            layoutParams = LinearLayout.LayoutParams(dp(9), dp(9)).apply {
+                marginEnd = dp(10)
             }
         }
-        val keyBtn = Button(this).apply {
-            text = "Chave"
-            setOnClickListener { pedirChave() }
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
-        top.addView(title)
+        val title = TextView(this).apply {
+            text = "EDITH"
+            textSize = 22f
+            letterSpacing = 0.06f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#E8EEF7"))
+        }
+        val version = TextView(this).apply {
+            text = "v0.4.0 · ASSISTENTE PESSOAL"
+            textSize = 12f
+            setTextColor(Color.parseColor("#94A3B8"))
+        }
+        heading.addView(title)
+        heading.addView(version)
+        val upgradeBtn = botaoRedondo("⟳", "#0E1524", "#94A3B8", 42) {
+            escrever("Você", "⟳ procura atualização")
+            verificarAtualizacao()
+        }.apply { contentDescription = "Procurar atualização da EDITH" }
+        val keyBtn = botaoRedondo("Chave", "#0E1524", "#E8EEF7", 58) {
+            pedirChave()
+        }
+        top.addView(statusDot)
+        top.addView(heading)
         top.addView(upgradeBtn)
         top.addView(keyBtn)
 
         scroll = ScrollView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(match, 0, 1f)
+            isFillViewport = true
+            clipToPadding = false
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+            )
         }
-        log = TextView(this).apply {
-            textSize = 16f
-            setTextColor(Color.WHITE)
+        chatList = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(8), 0, dp(12))
         }
-        scroll.addView(log)
+        thinkingView = TextView(this).apply {
+            text = "EDITH está pensando…"
+            textSize = 12f
+            setTextColor(Color.parseColor("#94A3B8"))
+            visibility = View.GONE
+            setPadding(dp(12), dp(8), dp(12), dp(12))
+        }
+        chatList.addView(thinkingView)
+        scroll.addView(chatList)
 
         val bottom = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(12), 0, 0)
         }
         input = EditText(this).apply {
-            hint = "Fale com a EDITH..."
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.GRAY)
-            layoutParams = LinearLayout.LayoutParams(0, wrap, 1f)
+            hint = "Fale com a EDITH…"
+            textSize = 15f
+            setSingleLine(false)
+            maxLines = 4
+            setTextColor(Color.parseColor("#E8EEF7"))
+            setHintTextColor(Color.parseColor("#94A3B8"))
+            background = forma("#0E1524", 18, "#1E293B")
+            setPadding(dp(16), dp(10), dp(16), dp(10))
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginEnd = dp(8)
+            }
         }
-        micBtn = Button(this).apply {
-            text = "🎙"
-            contentDescription = "Falar com a EDITH"
-            setOnClickListener { iniciarMicrofone() }
-        }
-        val sendBtn = Button(this).apply {
-            text = "Enviar"
-            setOnClickListener { enviar() }
-        }
+        micBtn = botaoRedondo("🎙", "#0E1524", "#35D6E8", 46) {
+            iniciarMicrofone()
+        }.apply { contentDescription = "Falar com a EDITH" }
+        (micBtn.layoutParams as LinearLayout.LayoutParams).marginEnd = dp(8)
+        sendBtn = botaoRedondo("➤", "#35D6E8", "#05070D", 46) {
+            enviar()
+        }.apply { contentDescription = "Enviar mensagem" }
         bottom.addView(input)
         bottom.addView(micBtn)
         bottom.addView(sendBtn)
@@ -151,9 +192,9 @@ class MainActivity : Activity() {
         root.addView(scroll)
         root.addView(bottom)
         setContentView(root)
+
         atualizador = Atualizador(this)
         comandos = Comandos(this) { verificarAtualizacao() }
-
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 val result = tts?.setLanguage(Locale("pt", "BR"))
@@ -165,16 +206,121 @@ class MainActivity : Activity() {
         escrever(
             "EDITH",
             "Olá. Agora eu mexo no aparelho, não só falo. Tente: \"abre o WhatsApp\", " +
-                "\"acende a lanterna\", \"volume 30\", \"alarme 7:30\", \"brilho 40\" ou \"abre o Wi-Fi\"." +
-                " Para me atualizar, toque em ⟳."
+                "\"acende a lanterna\", \"volume 30\", \"alarme 7:30\", \"brilho 40\" ou \"abre o Wi-Fi\". " +
+                "Para me atualizar, toque em ⟳."
         )
         checarAtualizacaoAutomatica()
     }
 
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density + 0.5f).toInt()
+
+    private fun forma(fill: String, radiusDp: Int, stroke: String? = null): android.graphics.drawable.GradientDrawable =
+        android.graphics.drawable.GradientDrawable().apply {
+            setColor(Color.parseColor(fill))
+            cornerRadius = dp(radiusDp).toFloat()
+            if (stroke != null) setStroke(dp(1), Color.parseColor(stroke))
+        }
+
+    private fun botaoRedondo(
+        label: String, fill: String, text: String, sizeDp: Int, action: () -> Unit
+    ): Button = Button(this).apply {
+        text = label
+        textSize = if (label == "Chave") 12f else 18f
+        isAllCaps = false
+        setTextColor(Color.parseColor(text))
+        background = forma(fill, sizeDp / 2, if (fill == "#0E1524") "#1E293B" else null)
+        minWidth = 0
+        minimumWidth = 0
+        minHeight = 0
+        minimumHeight = 0
+        setPadding(dp(8), dp(4), dp(8), dp(4))
+        layoutParams = LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)).apply {
+            marginStart = dp(6)
+        }
+        stateListAnimator = null
+        setOnClickListener { action() }
+    }
+
+    private fun atualizarEstado(estado: String) {
+        val cor = when (estado) {
+            "ouvindo" -> "#F59E0B"
+            "pensando" -> "#35D6E8"
+            else -> "#35D6E8"
+        }
+        statusDot.background = forma(cor, 99)
+        if (estado == "pensando" || estado == "ouvindo") {
+            statusDot.animate().alpha(0.35f).setDuration(550).withEndAction {
+                statusDot.animate().alpha(1f).setDuration(550).start()
+            }.start()
+        } else {
+            statusDot.animate().cancel()
+            statusDot.alpha = 1f
+        }
+        micBtn.background = forma(if (estado == "ouvindo") "#F59E0B" else "#0E1524", 99, "#1E293B")
+    }
     private fun prefs() = getSharedPreferences("edith", MODE_PRIVATE)
 
     private fun escrever(quem: String, texto: String) {
-        log.append("$quem: $texto\n\n")
+        val actionMessage = quem.contains("Aparelho")
+        val isUser = quem == "Você"
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = if (isUser) Gravity.END else Gravity.START
+            setPadding(0, dp(4), 0, dp(4))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        val bubble = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val maxWidth = (resources.displayMetrics.widthPixels * 0.82f).toInt()
+            layoutParams = LinearLayout.LayoutParams(
+                maxWidth.coerceAtLeast(dp(180)), ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            background = if (actionMessage) forma("#05070D", 4, "#1E293B")
+                else if (isUser) forma("#12303A", 18)
+                else forma("#0E1524", 18, "#1E293B")
+        }
+        if (actionMessage) {
+            val stripe = View(this).apply {
+                background = forma("#35D6E8", 2)
+                layoutParams = LinearLayout.LayoutParams(dp(3), dp(24)).apply {
+                    marginEnd = dp(9)
+                }
+            }
+            val actionRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            actionRow.addView(stripe)
+            val actionText = TextView(this).apply {
+                text = "⚙ Aparelho  ·  $texto"
+                textSize = 12f
+                setTextColor(Color.parseColor("#94A3B8"))
+            }
+            actionRow.addView(actionText)
+            bubble.addView(actionRow)
+        } else {
+            val sender = TextView(this).apply {
+                text = quem.uppercase(Locale("pt", "BR"))
+                textSize = 12f
+                letterSpacing = 0.05f
+                setTextColor(Color.parseColor(if (isUser) "#9FEAF2" else "#94A3B8"))
+                alpha = 0.9f
+            }
+            val body = TextView(this).apply {
+                text = texto
+                textSize = 15f
+                setTextColor(Color.parseColor("#E8EEF7"))
+                setLineSpacing(dp(2).toFloat(), 1f)
+            }
+            bubble.addView(sender)
+            bubble.addView(body)
+        }
+        row.addView(bubble)
+        chatList.addView(row, chatList.childCount - 1)
         scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
     }
 
@@ -220,6 +366,7 @@ class MainActivity : Activity() {
                     override fun onReadyForSpeech(params: Bundle?) {
                         listening = true
                         micBtn.text = "■"
+                        atualizarEstado("ouvindo")
                         escrever("EDITH", "Estou ouvindo...")
                     }
                     override fun onBeginningOfSpeech() {}
@@ -231,6 +378,7 @@ class MainActivity : Activity() {
                     override fun onError(error: Int) {
                         listening = false
                         micBtn.text = "🎙"
+                        atualizarEstado("idle")
                         val msg = when (error) {
                             SpeechRecognizer.ERROR_NO_MATCH -> "Não entendi o que você disse. Tente novamente."
                             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Não ouvi nenhuma fala. Toque no microfone e tente novamente."
@@ -243,6 +391,7 @@ class MainActivity : Activity() {
                     override fun onResults(results: Bundle?) {
                         listening = false
                         micBtn.text = "🎙"
+                        atualizarEstado("idle")
                         val recognized = results
                             ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                             ?.firstOrNull().orEmpty()
@@ -270,10 +419,12 @@ class MainActivity : Activity() {
             }
             listening = true
             micBtn.text = "■"
+            atualizarEstado("ouvindo")
             speechRecognizer?.startListening(intent)
         } catch (e: Exception) {
             listening = false
             micBtn.text = "🎙"
+            atualizarEstado("idle")
             escrever("EDITH", "Não consegui iniciar o microfone: ${e.message ?: "erro desconhecido"}.")
         }
     }
@@ -282,6 +433,7 @@ class MainActivity : Activity() {
         speechRecognizer?.cancel()
         listening = false
         micBtn.text = "🎙"
+        atualizarEstado("idle")
         escrever("EDITH", "Escuta cancelada.")
     }
 
@@ -327,6 +479,10 @@ class MainActivity : Activity() {
         history.put(JSONObject().put("role", "user").put("content", texto))
         while (history.length() > 20) history.remove(0)
         ocupado = true
+        sendBtn.isEnabled = false
+        sendBtn.alpha = 0.45f
+        thinkingView.visibility = View.VISIBLE
+        atualizarEstado("pensando")
         Thread {
             try {
                 val bruto = chamarGroq(key)
@@ -336,7 +492,13 @@ class MainActivity : Activity() {
                     escrever("EDITH", "Erro: ${e.message ?: "falha de conexão"}")
                 }
             } finally {
-                runOnUiThread { ocupado = false }
+                runOnUiThread {
+                    ocupado = false
+                    sendBtn.isEnabled = true
+                    sendBtn.alpha = 1f
+                    thinkingView.visibility = View.GONE
+                    atualizarEstado("idle")
+                }
             }
         }.start()
     }
@@ -371,7 +533,7 @@ class MainActivity : Activity() {
         c.requestMethod = "POST"
         c.setRequestProperty("Authorization", "Bearer $key")
         c.setRequestProperty("Content-Type", "application/json")
-        c.setRequestProperty("User-Agent", "EDITH/0.3.0")
+        c.setRequestProperty("User-Agent", "EDITH/0.4.0")
         c.connectTimeout = 15000
         c.readTimeout = 30000
         c.doOutput = true
