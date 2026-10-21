@@ -30,6 +30,8 @@
     </queries>
 
     <application
+        android:icon="@mipmap/edith_icon"
+        android:roundIcon="@mipmap/edith_icon"
         android:label="EDITH"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
         <activity
