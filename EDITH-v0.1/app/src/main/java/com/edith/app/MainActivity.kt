@@ -44,7 +44,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         val title = TextView(this).apply {
-            text = "EDITH"
+            text = "EDITH v0.1.1"
             textSize = 24f
             setTextColor(Color.parseColor("#4FC3F7"))
             layoutParams = LinearLayout.LayoutParams(0, wrap, 1f)
@@ -144,7 +144,7 @@ class MainActivity : Activity() {
         c.requestMethod = "POST"
         c.setRequestProperty("Authorization", "Bearer $key")
         c.setRequestProperty("Content-Type", "application/json")
-        c.setRequestProperty("User-Agent", "EDITH/0.1")
+        c.setRequestProperty("User-Agent", "EDITH/0.1.1")
         c.connectTimeout = 15000
         c.readTimeout = 30000
         c.doOutput = true
