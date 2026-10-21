@@ -136,7 +136,7 @@ class MainActivity : Activity() {
         val msgs = JSONArray().put(JSONObject().put("role", "system").put("content", persona))
         for (i in 0 until history.length()) msgs.put(history.getJSONObject(i))
         val body = JSONObject()
-            .put("model", "llama-3.3-70b-versatile")
+            .put("model", "openai/gpt-oss-120b")
             .put("messages", msgs)
 
         val c = URL("https://api.groq.com/openai/v1/chat/completions")
