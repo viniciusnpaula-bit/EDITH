@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
 import android.text.InputType
 import android.view.Gravity
 import android.view.View
@@ -24,6 +25,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 
 class MainActivity : Activity() {
     private val history = JSONArray()
@@ -33,6 +35,8 @@ class MainActivity : Activity() {
     private lateinit var micBtn: Button
     private var speechRecognizer: SpeechRecognizer? = null
     private var listening = false
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
 
     private val persona = "Você é a EDITH, assistente de IA no celular do usuário. " +
         "Responda sempre em português do Brasil, de forma curta, sarcástica e espirituosa " +
@@ -58,7 +62,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         val title = TextView(this).apply {
-            text = "EDITH v0.1.3"
+            text = "EDITH v0.1.4"
             textSize = 24f
             setTextColor(Color.parseColor("#4FC3F7"))
             layoutParams = LinearLayout.LayoutParams(0, wrap, 1f)
@@ -107,7 +111,15 @@ class MainActivity : Activity() {
         root.addView(bottom)
         setContentView(root)
 
-        escrever("EDITH", "Olá. Use 🎙 para falar usando o reconhecimento de voz do Android. O modo offline será solicitado quando disponível.")
+        tts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val result = tts?.setLanguage(Locale("pt", "BR"))
+                ttsReady = result != TextToSpeech.LANG_MISSING_DATA &&
+                    result != TextToSpeech.LANG_NOT_SUPPORTED
+            }
+        }
+
+        escrever("EDITH", "Olá. Agora também posso responder falando. Use 🎙 para ditar sua mensagem.")
     }
 
     private fun prefs() = getSharedPreferences("edith", MODE_PRIVATE)
@@ -253,7 +265,10 @@ class MainActivity : Activity() {
             } catch (e: Exception) {
                 "Erro: ${e.message ?: "falha de conexão"}"
             }
-            runOnUiThread { escrever("EDITH", resposta) }
+            runOnUiThread {
+                escrever("EDITH", resposta)
+                falar(resposta)
+            }
         }.start()
     }
 
@@ -269,7 +284,7 @@ class MainActivity : Activity() {
         c.requestMethod = "POST"
         c.setRequestProperty("Authorization", "Bearer $key")
         c.setRequestProperty("Content-Type", "application/json")
-        c.setRequestProperty("User-Agent", "EDITH/0.1.3")
+        c.setRequestProperty("User-Agent", "EDITH/0.1.4")
         c.connectTimeout = 15000
         c.readTimeout = 30000
         c.doOutput = true
@@ -286,7 +301,16 @@ class MainActivity : Activity() {
         return out
     }
 
+    private fun falar(texto: String) {
+        if (ttsReady && texto.isNotBlank()) {
+            tts?.speak(texto, TextToSpeech.QUEUE_FLUSH, null, "edith_resposta")
+        }
+    }
+
     override fun onDestroy() {
+        tts?.stop()
+        tts?.shutdown()
+        tts = null
         speechRecognizer?.destroy()
         speechRecognizer = null
         super.onDestroy()
