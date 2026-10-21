@@ -93,7 +93,12 @@ class MainActivity : Activity() {
             setBackgroundColor(Color.parseColor("#05070D"))
         }
         root.setOnApplyWindowInsetsListener { view, insets ->
-            view.setPadding(dp(16), dp(12), dp(16), dp(12))
+            view.setPadding(
+                dp(16) + insets.systemWindowInsetLeft,
+                dp(12) + insets.systemWindowInsetTop,
+                dp(16) + insets.systemWindowInsetRight,
+                dp(12) + insets.systemWindowInsetBottom
+            )
             insets
         }
 
