@@ -86,8 +86,9 @@ class Comandos(
 
         val apps = try {
             appsInstalados()
-        } catch (_: Exception) {
-            emptyList()
+        } catch (e: Exception) {
+            android.util.Log.e("EDITH-Comandos", "Falha ao consultar aplicativos lançáveis", e)
+            return "Não consegui consultar os aplicativos deste aparelho. Verifique as permissões do sistema e tente novamente."
         }
 
         val porNome = apps.firstOrNull { normalizar(it.first) == alvo }
@@ -159,10 +160,13 @@ class Comandos(
     }
 
     /** Lista curta de apps instalados, usada no prompt para a EDITH saber o que existe. */
-    fun nomesApps(limite: Int = 40): String {
+    fun nomesApps(limite: Int = 40): String = try {
         val apps = appsInstalados()
-        if (apps.isEmpty()) return "(não consegui listar)"
-        return apps.take(limite).joinToString(", ") { it.first }
+        if (apps.isEmpty()) "(não consegui listar)"
+        else apps.take(limite).joinToString(", ") { it.first }
+    } catch (e: Exception) {
+        android.util.Log.e("EDITH-Comandos", "Falha ao montar lista de aplicativos", e)
+        "(não consegui listar)"
     }
 
     private fun listarApps(): String {
