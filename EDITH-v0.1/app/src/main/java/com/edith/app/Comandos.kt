@@ -105,7 +105,7 @@ class Comandos(
         val escolhido = porNome ?: porPacote ?: if (ehSpotify) {
             "Spotify" to "com.spotify.music"
         } else {
-            return "Não achei nenhum app chamado \\"$nomeBruto\\". Instalados: ${nomesApps(12)}"
+            return "Não achei nenhum app chamado \"$nomeBruto\". Instalados: ${nomesApps(12)}"
         }
 
         val pm = activity.packageManager
