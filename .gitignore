@@ -1,0 +1,10 @@
+# Build
+build/
+.gradle/
+local.properties
+*.apk
+*.iml
+.idea/
+
+# Ferramentas locais de build (não fazem parte do app)
+.toolchain/

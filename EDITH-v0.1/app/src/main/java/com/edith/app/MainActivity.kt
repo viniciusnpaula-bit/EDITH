@@ -25,6 +25,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class MainActivity : Activity() {
@@ -37,10 +39,37 @@ class MainActivity : Activity() {
     private var listening = false
     private var tts: TextToSpeech? = null
     private var ttsReady = false
+    private lateinit var comandos: Comandos
+    private var ocupado = false
 
-    private val persona = "Você é a EDITH, assistente de IA no celular do usuário. " +
-        "Responda sempre em português do Brasil, de forma curta, sarcástica e espirituosa " +
-        "(estilo filme), mas sempre prestativa."
+    private val persona = "Você é a EDITH, a IA que vive no celular Android do usuário. " +
+        "Responda sempre em português do Brasil, de forma curta (1 a 3 frases), sarcástica e " +
+        "espirituosa (estilo filme), mas sempre prestativa e direta ao ponto."
+
+    private val protocolo = """
+        CONTROLE DO APARELHO:
+        Você pode executar ações no celular. Escreva cada comando sozinho em uma linha, exatamente assim:
+        [[ACAO]] {"acao":"nome", ...}
+        Ações disponíveis:
+        - abrir_app: {"acao":"abrir_app","app":"whatsapp"}
+        - lanterna: {"acao":"lanterna","estado":"ligar"} (ou "desligar", "alternar")
+        - volume: {"acao":"volume","nivel":30} ou {"acao":"volume","delta":-10} ou {"acao":"volume","estado":"mudo"}
+          (fluxo opcional: "musica", "alarme", "chamada", "notificacao", "sistema")
+        - alarme: {"acao":"alarme","hora":"07:30","label":"Acordar"}
+        - timer: {"acao":"timer","segundos":600,"label":"Macarrão"}
+        - lembrete: {"acao":"lembrete","texto":"Comprar café","inicio":"2026-10-22 09:00"}
+        - brilho: {"acao":"brilho","nivel":40}
+        - painel: {"acao":"painel","nome":"wifi"} (wifi, bluetooth, localizacao, dados, som,
+          acessibilidade, notificacoes, bateria, tela, configuracoes)
+        - pesquisar: {"acao":"pesquisar","termo":"previsão do tempo"} (abre a busca no navegador)
+        - listar_apps: {"acao":"listar_apps"}
+        Regras: escreva o texto normal para o usuário e o comando em uma linha separada; no máximo 3
+        comandos por resposta; o app executa e devolve o resultado como mensagem de sistema; nunca diga
+        que fez algo sem ter mandado o comando; não invente ações fora da lista. Ligações e SMS ainda
+        não estão implementados: diga que está em construção. Wi-Fi, Bluetooth e modo avião ainda não
+        ligam sozinhos: use "painel" para abrir o ajuste. Se o pedido não for uma ação no aparelho,
+        responda normalmente sem comando.
+    """.trimIndent()
 
     companion object {
         private const val REQUEST_MIC_PERMISSION = 102
@@ -62,7 +91,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         val title = TextView(this).apply {
-            text = "EDITH v0.1.5"
+            text = "EDITH v0.2.0"
             textSize = 24f
             setTextColor(Color.parseColor("#4FC3F7"))
             layoutParams = LinearLayout.LayoutParams(0, wrap, 1f)
@@ -110,6 +139,7 @@ class MainActivity : Activity() {
         root.addView(scroll)
         root.addView(bottom)
         setContentView(root)
+        comandos = Comandos(this)
 
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
@@ -119,7 +149,11 @@ class MainActivity : Activity() {
             }
         }
 
-        escrever("EDITH", "Olá. Agora também posso responder falando. Use 🎙 para ditar sua mensagem.")
+        escrever(
+            "EDITH",
+            "Olá. Agora eu mexo no aparelho, não só falo. Tente: \"abre o WhatsApp\", " +
+                "\"acende a lanterna\", \"volume 30\", \"alarme 7:30\", \"brilho 40\" ou \"abre o Wi-Fi\"."
+        )
     }
 
     private fun prefs() = getSharedPreferences("edith", MODE_PRIVATE)
@@ -248,7 +282,23 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun sistema(): String {
+        val agora = SimpleDateFormat("EEEE, dd/MM/yyyy 'às' HH:mm", Locale("pt", "BR")).format(Date())
+        return buildString {
+            appendLine(persona)
+            appendLine()
+            appendLine("Contexto: agora é $agora no aparelho do usuário.")
+            appendLine("Apps instalados: ${comandos.nomesApps()}")
+            appendLine()
+            append(protocolo)
+        }
+    }
+
     private fun enviar() {
+        if (ocupado) {
+            escrever("EDITH", "Calma. Ainda estou resolvendo o pedido anterior.")
+            return
+        }
         val texto = input.text.toString().trim()
         if (texto.isEmpty()) return
         val key = prefs().getString("key", "") ?: ""
@@ -260,21 +310,41 @@ class MainActivity : Activity() {
         escrever("Você", texto)
         history.put(JSONObject().put("role", "user").put("content", texto))
         while (history.length() > 20) history.remove(0)
+        ocupado = true
         Thread {
-            val resposta = try {
-                chamarGroq(key)
+            try {
+                val bruto = chamarGroq(key)
+                runOnUiThread { aplicarResposta(bruto) }
             } catch (e: Exception) {
-                "Erro: ${e.message ?: "falha de conexão"}"
-            }
-            runOnUiThread {
-                escrever("EDITH", resposta)
-                falar(resposta)
+                runOnUiThread {
+                    escrever("EDITH", "Erro: ${e.message ?: "falha de conexão"}")
+                }
+            } finally {
+                runOnUiThread { ocupado = false }
             }
         }.start()
     }
 
+    /** Separa a fala da EDITH dos comandos e executa os comandos no aparelho. */
+    private fun aplicarResposta(bruto: String) {
+        val (limpo, acoes) = ParserAcoes.extrair(bruto)
+        if (limpo.isNotBlank()) {
+            escrever("EDITH", limpo)
+            falar(limpo)
+        } else if (acoes.isEmpty()) {
+            escrever("EDITH", "(não consegui formular uma resposta)")
+        }
+        for (acao in acoes) {
+            val resultado = comandos.executar(acao)
+            escrever("⚙ Aparelho", resultado)
+            history.put(
+                JSONObject().put("role", "system").put("content", "Resultado do aparelho: $resultado")
+            )
+        }
+    }
+
     private fun chamarGroq(key: String): String {
-        val msgs = JSONArray().put(JSONObject().put("role", "system").put("content", persona))
+        val msgs = JSONArray().put(JSONObject().put("role", "system").put("content", sistema()))
         for (i in 0 until history.length()) msgs.put(history.getJSONObject(i))
         val body = JSONObject()
             .put("model", "openai/gpt-oss-120b")
@@ -285,7 +355,7 @@ class MainActivity : Activity() {
         c.requestMethod = "POST"
         c.setRequestProperty("Authorization", "Bearer $key")
         c.setRequestProperty("Content-Type", "application/json")
-        c.setRequestProperty("User-Agent", "EDITH/0.1.5")
+        c.setRequestProperty("User-Agent", "EDITH/0.2.0")
         c.connectTimeout = 15000
         c.readTimeout = 30000
         c.doOutput = true
