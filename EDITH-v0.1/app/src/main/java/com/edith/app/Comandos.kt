@@ -99,14 +99,9 @@ class Comandos(
                 alvo == it.second.lowercase(Locale.ROOT)
         }
 
-        // Spotify tem pacote conhecido; a declaração <queries> também permite consultá-lo
-        // mesmo quando a lista genérica de apps não o retorna.
-        val ehSpotify = alvo.contains("spotify")
-        val escolhido = porNome ?: porPacote ?: if (ehSpotify) {
-            "Spotify" to "com.spotify.music"
-        } else {
-            return "Não achei nenhum app chamado \"$nomeBruto\". Instalados: ${nomesApps(12)}"
-        }
+        // Resolve qualquer app pelo nome exibido ou pacote descoberto no Android.
+        val escolhido = porNome ?: porPacote
+            ?: return "Não achei nenhum app chamado \"$nomeBruto\". Instalados: ${nomesApps(12)}"
 
         val pm = activity.packageManager
         val pacote = escolhido.second
@@ -134,11 +129,7 @@ class Comandos(
                         Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
                         0
                     ).firstOrNull { it.activityInfo.packageName == pacote }
-                        ?: return if (ehSpotify) {
-                            "Não consegui abrir o Spotify. Verifique se ele está instalado."
-                        } else {
-                            "Encontrei ${escolhido.first}, mas o Android não disponibilizou uma tela inicial para ele."
-                        }
+                        ?: return "Encontrei ${escolhido.first}, mas o Android não disponibilizou uma tela inicial para ele."
 
                     val explicito = Intent(Intent.ACTION_MAIN).apply {
                         addCategory(Intent.CATEGORY_LAUNCHER)
@@ -152,18 +143,18 @@ class Comandos(
                     "Abrindo ${escolhido.first}."
                 }
             }
-        } catch (_: ActivityNotFoundException) {
-            if (ehSpotify) "Não consegui abrir o Spotify. Verifique se ele está instalado."
-            else "Não consegui abrir ${escolhido.first}. Verifique se o app está instalado."
-        } catch (_: SecurityException) {
-            if (ehSpotify) "Não consegui abrir o Spotify. Verifique se ele está instalado e habilitado."
-            else "Não consegui abrir ${escolhido.first}. Verifique se o app está instalado e habilitado."
-        } catch (_: NullPointerException) {
-            if (ehSpotify) "Não consegui abrir o Spotify. Verifique se ele está instalado."
-            else "Não consegui abrir ${escolhido.first}. O Android não forneceu uma tela de abertura."
+        } catch (e: ActivityNotFoundException) {
+            android.util.Log.e("EDITH-Comandos", "Nenhuma Activity de inicialização para $pacote", e)
+            "Não consegui abrir ${escolhido.first}. Verifique se o app está instalado."
+        } catch (e: SecurityException) {
+            android.util.Log.e("EDITH-Comandos", "Permissão negada ao abrir $pacote", e)
+            "Não consegui abrir ${escolhido.first}. Verifique se o app está instalado e habilitado."
+        } catch (e: NullPointerException) {
+            android.util.Log.e("EDITH-Comandos", "Referência nula ao abrir $pacote", e)
+            "Não consegui abrir ${escolhido.first}. O Android não forneceu uma tela de abertura."
         } catch (e: Exception) {
-            if (ehSpotify) "Não consegui abrir o Spotify. Verifique se ele está instalado."
-            else "Não consegui abrir ${escolhido.first}: ${e.message ?: e.javaClass.simpleName}."
+            android.util.Log.e("EDITH-Comandos", "Falha ao abrir $pacote", e)
+            "Não consegui abrir ${escolhido.first}: ${e.message ?: e.javaClass.simpleName}."
         }
     }
 
