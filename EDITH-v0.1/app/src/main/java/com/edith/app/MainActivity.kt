@@ -40,6 +40,7 @@ class MainActivity : Activity() {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private lateinit var comandos: Comandos
+    private lateinit var atualizador: Atualizador
     private var ocupado = false
 
     private val persona = "Você é a EDITH, a IA que vive no celular Android do usuário. " +
@@ -63,6 +64,8 @@ class MainActivity : Activity() {
           acessibilidade, notificacoes, bateria, tela, configuracoes)
         - pesquisar: {"acao":"pesquisar","termo":"previsão do tempo"} (abre a busca no navegador)
         - listar_apps: {"acao":"listar_apps"}
+        - atualizar: {"acao":"atualizar"} (olha no GitHub se saiu versão nova e oferece instalar)
+        - versao: {"acao":"versao"}
         Regras: escreva o texto normal para o usuário e o comando em uma linha separada; no máximo 3
         comandos por resposta; o app executa e devolve o resultado como mensagem de sistema; nunca diga
         que fez algo sem ter mandado o comando; não invente ações fora da lista. Ligações e SMS ainda
@@ -91,16 +94,25 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         val title = TextView(this).apply {
-            text = "EDITH v0.2.0"
+            text = "EDITH v0.3.0"
             textSize = 24f
             setTextColor(Color.parseColor("#4FC3F7"))
             layoutParams = LinearLayout.LayoutParams(0, wrap, 1f)
+        }
+        val upgradeBtn = Button(this).apply {
+            text = "⟳"
+            contentDescription = "Procurar atualização da EDITH"
+            setOnClickListener {
+                escrever("Você", "⟳ procura atualização")
+                verificarAtualizacao()
+            }
         }
         val keyBtn = Button(this).apply {
             text = "Chave"
             setOnClickListener { pedirChave() }
         }
         top.addView(title)
+        top.addView(upgradeBtn)
         top.addView(keyBtn)
 
         scroll = ScrollView(this).apply {
@@ -139,7 +151,8 @@ class MainActivity : Activity() {
         root.addView(scroll)
         root.addView(bottom)
         setContentView(root)
-        comandos = Comandos(this)
+        atualizador = Atualizador(this)
+        comandos = Comandos(this) { verificarAtualizacao() }
 
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
@@ -152,8 +165,10 @@ class MainActivity : Activity() {
         escrever(
             "EDITH",
             "Olá. Agora eu mexo no aparelho, não só falo. Tente: \"abre o WhatsApp\", " +
-                "\"acende a lanterna\", \"volume 30\", \"alarme 7:30\", \"brilho 40\" ou \"abre o Wi-Fi\"."
+                "\"acende a lanterna\", \"volume 30\", \"alarme 7:30\", \"brilho 40\" ou \"abre o Wi-Fi\"." +
+                " Para me atualizar, toque em ⟳."
         )
+        checarAtualizacaoAutomatica()
     }
 
     private fun prefs() = getSharedPreferences("edith", MODE_PRIVATE)
@@ -288,6 +303,7 @@ class MainActivity : Activity() {
             appendLine(persona)
             appendLine()
             appendLine("Contexto: agora é $agora no aparelho do usuário.")
+            appendLine("Você está na versão ${atualizador.versaoAtual()} do app.")
             appendLine("Apps instalados: ${comandos.nomesApps()}")
             appendLine()
             append(protocolo)
@@ -355,7 +371,7 @@ class MainActivity : Activity() {
         c.requestMethod = "POST"
         c.setRequestProperty("Authorization", "Bearer $key")
         c.setRequestProperty("Content-Type", "application/json")
-        c.setRequestProperty("User-Agent", "EDITH/0.2.0")
+        c.setRequestProperty("User-Agent", "EDITH/0.3.0")
         c.connectTimeout = 15000
         c.readTimeout = 30000
         c.doOutput = true
@@ -376,6 +392,86 @@ class MainActivity : Activity() {
         if (ttsReady && texto.isNotBlank()) {
             tts?.speak(texto, TextToSpeech.QUEUE_FLUSH, null, "edith_resposta")
         }
+    }
+
+    // ---------- modo de ação: upgrade da própria EDITH ----------
+
+    /** Procura versão nova no GitHub. Devolve o texto que vai para o chat. */
+    private fun verificarAtualizacao(): String {
+        escrever("EDITH", "Deixa eu ver no GitHub se saiu versão nova...")
+        Thread {
+            try {
+                val release = atualizador.buscarRelease()
+                val atual = atualizador.versaoAtual()
+                runOnUiThread {
+                    if (Versao.maisNova(release.versao, atual)) {
+                        oferecerAtualizacao(release, atual)
+                    } else {
+                        escrever("EDITH", "Você já está na $atual, a mais nova. Continue me subestimando.")
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    escrever("EDITH", "Não consegui verificar: ${e.message ?: "erro desconhecido"}.")
+                }
+            }
+        }.start()
+        return "Procurando versão nova no GitHub."
+    }
+
+    private fun oferecerAtualizacao(release: Atualizador.Release, atual: String) {
+        falar("Saiu a ${release.versao}. Quer que eu instale?")
+        AlertDialog.Builder(this)
+            .setTitle("EDITH ${release.versao} disponível")
+            .setMessage("Você está na $atual. Baixar e instalar agora?")
+            .setPositiveButton("Instalar") { _, _ -> baixarEInstalar(release) }
+            .setNegativeButton("Agora não", null)
+            .show()
+    }
+
+    private fun baixarEInstalar(release: Atualizador.Release) {
+        escrever("EDITH", "Baixando a ${release.versao}. Não me interrompa.")
+        Thread {
+            try {
+                val apk = atualizador.baixar(release)
+                runOnUiThread {
+                    escrever("EDITH", "Baixado (${apk.length() / 1024} KB). Abrindo o instalador.")
+                    if (atualizador.podeInstalar()) {
+                        atualizador.instalar(apk)
+                    } else {
+                        escrever(
+                            "EDITH",
+                            "O Android precisa da sua autorização: ligue \"Permitir desta fonte\" e toque em ⟳ de novo."
+                        )
+                        atualizador.pedirPermissaoInstalacao()
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    escrever("EDITH", "O download falhou: ${e.message ?: "erro desconhecido"}.")
+                }
+            }
+        }.start()
+    }
+
+    /** Checagem silenciosa, no máximo uma vez a cada 6 horas. */
+    private fun checarAtualizacaoAutomatica() {
+        val agora = System.currentTimeMillis()
+        val ultima = prefs().getLong("ultima_checagem_upgrade", 0L)
+        if (agora - ultima < 6 * 60 * 60 * 1000L) return
+        prefs().edit().putLong("ultima_checagem_upgrade", agora).apply()
+        Thread {
+            try {
+                val release = atualizador.buscarRelease()
+                if (Versao.maisNova(release.versao, atualizador.versaoAtual())) {
+                    runOnUiThread {
+                        escrever("EDITH", "Saiu a ${release.versao}. Toque em ⟳ que eu instalo.")
+                    }
+                }
+            } catch (e: Exception) {
+                // sem internet ou sem release: não incomoda o usuário
+            }
+        }.start()
     }
 
     override fun onDestroy() {

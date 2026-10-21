@@ -22,7 +22,10 @@ import java.util.Locale
  * O modelo nunca mexe no celular: ele só escreve um comando em texto,
  * o app interpreta aqui e devolve o resultado.
  */
-class Comandos(private val activity: Activity) {
+class Comandos(
+    private val activity: Activity,
+    private val aoAtualizar: () -> String = { "Atualização não configurada." }
+) {
 
     private val prefs = activity.getSharedPreferences("edith", Context.MODE_PRIVATE)
     private var appsCache: List<Pair<String, String>>? = null
@@ -41,10 +44,22 @@ class Comandos(private val activity: Activity) {
             "brilho" -> brilho(acao)
             "painel" -> painel(acao.texto("nome") ?: "")
             "pesquisar" -> pesquisar(acao.texto("termo") ?: "")
+            "atualizar", "atualizar_app", "verificar_atualizacao", "upgrade" -> aoAtualizar()
+            "versao", "versão" -> versao()
             else -> "Não conheço a ação \"${acao.nome}\"."
         }
     } catch (e: Exception) {
         "Falhou (${acao.nome}): ${e.message ?: e.javaClass.simpleName}"
+    }
+
+    // ---------- versão ----------
+
+    @Suppress("DEPRECATION")
+    private fun versao(): String = try {
+        val info = activity.packageManager.getPackageInfo(activity.packageName, 0)
+        "Estou na versão ${info.versionName} (build ${info.versionCode})."
+    } catch (e: Exception) {
+        "Não consegui ler minha própria versão."
     }
 
     // ---------- apps ----------

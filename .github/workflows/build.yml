@@ -3,6 +3,10 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,3 +27,14 @@ jobs:
         with:
           name: EDITH-apk
           path: EDITH-v0.1/app/build/outputs/apk/debug/app-debug.apk
+      # Publica o APK numa release para o próprio app conseguir se atualizar
+      - name: Publicar versão (GitHub Releases)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -1)
+          echo "Versão detectada: $VERSION"
+          gh release delete "v$VERSION" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "v$VERSION" app/build/outputs/apk/debug/app-debug.apk \
+            --title "EDITH $VERSION" \
+            --notes "APK gerado automaticamente pelo GitHub Actions."
