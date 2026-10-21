@@ -603,6 +603,10 @@ class MainActivity : Activity() {
         for (acao in acoes) {
             val resultado = comandos.executar(acao)
             escrever("⚙ Aparelho", resultado)
+            if (resultado.startsWith("Não consegui abrir") ||
+                resultado.startsWith("Não achei nenhum app chamado")) {
+                falar(resultado)
+            }
             history.put(
                 JSONObject().put("role", "system").put("content", "Resultado do aparelho: $resultado")
             )
