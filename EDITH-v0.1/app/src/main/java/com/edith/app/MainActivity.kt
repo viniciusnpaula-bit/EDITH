@@ -228,12 +228,12 @@ class MainActivity : Activity() {
         }
 
     private fun botaoRedondo(
-        label: String, fill: String, text: String, sizeDp: Int, action: () -> Unit
+        label: String, fill: String, textColorHex: String, sizeDp: Int, action: () -> Unit
     ): Button = Button(this).apply {
-        text = label
+        this.text = label
         textSize = if (label == "Chave") 12f else 18f
         isAllCaps = false
-        setTextColor(Color.parseColor(text))
+        setTextColor(Color.parseColor(textColorHex))
         background = forma(fill, sizeDp / 2, if (fill == "#0E1524") "#1E293B" else null)
         minWidth = 0
         minimumWidth = 0
