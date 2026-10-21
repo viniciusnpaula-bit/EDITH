@@ -21,6 +21,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -574,7 +575,14 @@ class MainActivity : Activity() {
         Thread {
             try {
                 val bruto = chamarGroq(key)
-                runOnUiThread { aplicarResposta(bruto) }
+                runOnUiThread {
+                    try {
+                        aplicarResposta(bruto)
+                    } catch (e: Exception) {
+                        Log.e("EDITH", "Falha ao processar resposta ou executar ações", e)
+                        escrever("EDITH", "Recebi a resposta, mas não consegui processá-la. Tente reformular o pedido.")
+                    }
+                }
             } catch (e: Exception) {
                 runOnUiThread {
                     escrever("EDITH", "Erro: ${e.message ?: "falha de conexão"}")
@@ -723,7 +731,7 @@ class MainActivity : Activity() {
                     }
                 }
             } catch (e: Exception) {
-                // sem internet ou sem release: não incomoda o usuário
+                Log.w("EDITH", "Verificação automática de atualização falhou", e)
             }
         }.start()
     }
