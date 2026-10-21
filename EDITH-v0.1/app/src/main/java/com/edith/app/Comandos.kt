@@ -94,11 +94,33 @@ class Comandos(
         val escolhido = porNome ?: porPacote
             ?: return "Não achei nenhum app chamado \"$nomeBruto\". Instalados: ${nomesApps(12)}"
 
-        val intent = activity.packageManager.getLaunchIntentForPackage(escolhido.second)
-            ?: return "Achei ${escolhido.first}, mas o Android não deixa abrir."
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        activity.startActivity(intent)
-        return "Abri ${escolhido.first}."
+        // Em alguns aparelhos, getLaunchIntentForPackage() retorna null mesmo
+        // quando o app aparece na consulta de atividades. Use a Activity launcher
+        // encontrada pelo PackageManager e abra-a explicitamente.
+        val pm = activity.packageManager
+        val launcher = pm.queryIntentActivities(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
+            0
+        ).firstOrNull { it.activityInfo.packageName == escolhido.second }
+            ?: return "Encontrei ${escolhido.first}, mas não achei uma tela inicial que o Android possa abrir."
+
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            component = android.content.ComponentName(
+                launcher.activityInfo.packageName,
+                launcher.activityInfo.name
+            )
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+        }
+
+        return try {
+            activity.startActivity(intent)
+            "Abrindo ${escolhido.first}."
+        } catch (e: android.content.ActivityNotFoundException) {
+            "O Android não conseguiu abrir ${escolhido.first}. Tente abrir pelo ícone do aparelho."
+        } catch (e: SecurityException) {
+            "O Android bloqueou a abertura de ${escolhido.first}."
+        }
     }
 
     /** Lista curta de apps instalados, usada no prompt para a EDITH saber o que existe. */
