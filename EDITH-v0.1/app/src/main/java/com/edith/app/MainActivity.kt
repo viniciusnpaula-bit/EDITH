@@ -45,6 +45,8 @@ class MainActivity : Activity() {
     private lateinit var comandos: Comandos
     private lateinit var atualizador: Atualizador
     private var ocupado = false
+    private lateinit var homeRoot: LinearLayout
+    private var settingsKeyInput: EditText? = null
 
     private val persona = "Você é a EDITH, a IA que vive no celular Android do usuário. " +
         "Responda sempre em português do Brasil, de forma curta (1 a 3 frases), sarcástica e " +
@@ -135,9 +137,9 @@ class MainActivity : Activity() {
             escrever("Você", "⟳ procura atualização")
             verificarAtualizacao()
         }.apply { contentDescription = "Procurar atualização da EDITH" }
-        val keyBtn = botaoRedondo("Chave", "#0E1524", "#E8EEF7", 58) {
-            pedirChave()
-        }
+        val keyBtn = botaoRedondo("⚙", "#0E1524", "#35D6E8", 46) {
+            abrirConfiguracoes()
+        }.apply { contentDescription = "Abrir configurações" }
         top.addView(statusDot)
         top.addView(heading)
         top.addView(upgradeBtn)
@@ -196,6 +198,7 @@ class MainActivity : Activity() {
         root.addView(top)
         root.addView(scroll)
         root.addView(bottom)
+        homeRoot = root
         setContentView(root)
 
         atualizador = Atualizador(this)
@@ -237,8 +240,7 @@ class MainActivity : Activity() {
         background = forma(fill, sizeDp / 2, if (fill == "#0E1524") "#1E293B" else null)
         minWidth = 0
         minimumWidth = 0
-        minHeight = 0
-        minimumHeight = 0
+        minHeight = 0        minimumHeight = 0
         setPadding(dp(8), dp(4), dp(8), dp(4))
         layoutParams = LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)).apply {
             marginStart = dp(6)
@@ -329,26 +331,107 @@ class MainActivity : Activity() {
         scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
     }
 
-    private fun pedirChave() {
-        val et = EditText(this).apply {
+    private fun abrirConfiguracoes() {
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(22), dp(18), dp(22), dp(24))
+            setBackgroundColor(Color.parseColor("#05070D"))
+        }
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val back = botaoRedondo("‹", "#0E1524", "#35D6E8", 44) {
+            settingsKeyInput = null
+            setContentView(homeRoot)
+        }.apply { contentDescription = "Voltar para a EDITH" }
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), 0, 0, 0)
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        heading.addView(TextView(this).apply {
+            text = "Configurações"
+            textSize = 23f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#E8EEF7"))
+        })
+        heading.addView(TextView(this).apply {
+            text = "Personalize sua assistente"
+            textSize = 13f
+            setTextColor(Color.parseColor("#94A3B8"))
+        })
+        header.addView(back)
+        header.addView(heading)
+        page.addView(header)
+
+        page.addView(TextView(this).apply {
+            text = "CONEXÃO COM A IA"
+            textSize = 12f
+            letterSpacing = 0.12f
+            setTextColor(Color.parseColor("#35D6E8"))
+            setPadding(0, dp(34), 0, dp(10))
+        })
+        page.addView(TextView(this).apply {
+            text = "Chave da API Groq"
+            textSize = 16f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#E8EEF7"))
+        })
+        page.addView(TextView(this).apply {
+            text = "Cole sua chave aqui. Ela fica salva localmente neste aparelho."
+            textSize = 13f
+            setTextColor(Color.parseColor("#94A3B8"))
+            setPadding(0, dp(6), 0, dp(12))
+        })
+        settingsKeyInput = EditText(this).apply {
             hint = "gsk_..."
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setSingleLine(true)
+            setText(prefs().getString("key", "") ?: "")
+            setTextColor(Color.parseColor("#E8EEF7"))
+            setHintTextColor(Color.parseColor("#64748B"))
+            background = forma("#0E1524", 16, "#1E293B")
+            setPadding(dp(15), dp(14), dp(15), dp(14))
         }
-        AlertDialog.Builder(this)
-            .setTitle("Chave da Groq")
-            .setView(et)
-            .setPositiveButton("Salvar") { _, _ ->
-                val key = et.text.toString().trim()
-                if (key.isEmpty()) {
-                    escrever("EDITH", "A chave está vazia. Tente novamente.")
-                } else {
-                    prefs().edit().putString("key", key).apply()
-                    escrever("EDITH", "Chave salva.")
-                }
+        page.addView(settingsKeyInput, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+        page.addView(botaoRedondo("Salvar chave", "#35D6E8", "#05070D", 52) {
+            val key = settingsKeyInput?.text?.toString()?.trim().orEmpty()
+            if (key.isBlank()) {
+                Toast.makeText(this, "Cole uma chave da Groq antes de salvar.", Toast.LENGTH_LONG).show()
+            } else {
+                prefs().edit().putString("key", key).apply()
+                Toast.makeText(this, "Chave da API salva neste aparelho.", Toast.LENGTH_SHORT).show()
+                setContentView(homeRoot)
+                escrever("EDITH", "Conexão configurada. Estou pronta.")
+                settingsKeyInput = null
             }
-            .setNegativeButton("Cancelar", null)
-            .show()
+        }.apply {
+            text = "Salvar chave"
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
+            ).apply { topMargin = dp(14) }
+        })
+        page.addView(TextView(this).apply {
+            text = "A chave não deve ser compartilhada. Ela é armazenada nas preferências privadas do aplicativo."
+            textSize = 12f
+            setTextColor(Color.parseColor("#64748B"))
+            setPadding(0, dp(12), 0, 0)
+        })
+        page.addView(botaoRedondo("Verificar atualização  ⟳", "#0E1524", "#35D6E8", 52) {
+            setContentView(homeRoot)
+            verificarAtualizacao()
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
+            ).apply { topMargin = dp(24) }
+        })
+        setContentView(page)
     }
+
+    private fun pedirChave() = abrirConfiguracoes()
 
     private fun iniciarMicrofone() {
         if (listening) {
@@ -477,8 +560,7 @@ class MainActivity : Activity() {
         val key = prefs().getString("key", "") ?: ""
         if (key.isEmpty()) {
             escrever("EDITH", "Primeiro toque em Chave e cole sua chave da Groq.")
-            return
-        }
+            return        }
         input.setText("")
         escrever("Você", texto)
         history.put(JSONObject().put("role", "user").put("content", texto))
