@@ -240,7 +240,8 @@ class MainActivity : Activity() {
         background = forma(fill, sizeDp / 2, if (fill == "#0E1524") "#1E293B" else null)
         minWidth = 0
         minimumWidth = 0
-        minHeight = 0        minimumHeight = 0
+        minHeight = 0
+        minimumHeight = 0
         setPadding(dp(8), dp(4), dp(8), dp(4))
         layoutParams = LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp)).apply {
             marginStart = dp(6)
