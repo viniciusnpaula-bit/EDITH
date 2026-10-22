@@ -35,6 +35,8 @@ object Diagnostico {
             }
             val destino = arquivo(activity)
             if (destino.exists() && destino.length() > LIMITE_BYTES) destino.delete()
+            // Visível também no logcat, para quem tiver cabo/adb.
+            android.util.Log.e("EDITH-CRASH", linha)
             destino.appendText(linha)
         } catch (e: Exception) {
             android.util.Log.e("EDITH", "Não consegui gravar o diagnóstico", e)

@@ -13,6 +13,7 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.text.InputType
 import android.view.Gravity
+import android.view.inputmethod.InputMethodManager
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -141,7 +142,7 @@ class MainActivity : Activity() {
             setTextColor(Color.parseColor("#E8EEF7"))
         }
         val version = TextView(this).apply {
-            text = "v0.4.1 · ASSISTENTE PESSOAL"
+            text = "v0.4.2 · ASSISTENTE PESSOAL"
             textSize = 12f
             setTextColor(Color.parseColor("#94A3B8"))
         }
@@ -289,6 +290,19 @@ class MainActivity : Activity() {
     private fun prefs() = getSharedPreferences("edith", MODE_PRIVATE)
 
     private fun escrever(quem: String, texto: String) {
+        if (Thread.currentThread() !== mainThread) {
+            naTela { escrever(quem, texto) }
+            return
+        }
+        try {
+            desenharMensagem(quem, texto)
+        } catch (e: Exception) {
+            Log.e("EDITH", "Falha ao desenhar mensagem", e)
+            Diagnostico.registrar(this, e, "escrever")
+        }
+    }
+
+    private fun desenharMensagem(quem: String, texto: String) {
         val actionMessage = quem.contains("Aparelho")
         val isUser = quem == "Você"
         val row = LinearLayout(this).apply {
@@ -638,8 +652,17 @@ class MainActivity : Activity() {
             escrever("EDITH", "Primeiro toque em ⚙ e cole sua chave da Groq.")
             return
         }
+        // O teclado some ao enviar: ele redimensiona a janela e, com foco no campo,
+        // o Android pode derrubar a Activity no meio da resposta.
         input.setText("")
-        escrever("Você", texto)
+        input.clearFocus()
+        (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+            .hideSoftInputFromWindow(input.windowToken, 0)
+        try {
+            escrever("Você", texto)
+        } catch (e: Exception) {
+            Log.e("EDITH", "Falha ao desenhar a mensagem do usuário", e)
+        }
         history.put(JSONObject().put("role", "user").put("content", texto))
         while (history.length() > 20) history.remove(0)
         ocupado = true
@@ -650,20 +673,20 @@ class MainActivity : Activity() {
         Thread {
             try {
                 val bruto = chamarGroq(key)
-                runOnUiThread {
+                naTela {
                     try {
                         aplicarResposta(bruto)
                     } catch (e: Exception) {
                         Log.e("EDITH", "Falha ao processar resposta ou executar ações", e)
+                        Diagnostico.registrar(this, e, "aplicarResposta")
                         escrever("EDITH", "Recebi a resposta, mas não consegui processá-la. Tente reformular o pedido.")
                     }
                 }
             } catch (e: Exception) {
-                runOnUiThread {
-                    escrever("EDITH", "Erro: ${e.message ?: "falha de conexão"}")
-                }
+                Log.e("EDITH", "Falha na chamada da Groq", e)
+                naTela { escrever("EDITH", "Erro: ${e.message ?: "falha de conexão"}") }
             } finally {
-                runOnUiThread {
+                naTela {
                     ocupado = false
                     sendBtn.isEnabled = true
                     sendBtn.alpha = 1f
@@ -733,7 +756,7 @@ class MainActivity : Activity() {
         c.requestMethod = "POST"
         c.setRequestProperty("Authorization", "Bearer $key")
         c.setRequestProperty("Content-Type", "application/json")
-        c.setRequestProperty("User-Agent", "EDITH/0.4.1")
+        c.setRequestProperty("User-Agent", "EDITH/0.4.2")
         c.connectTimeout = 15000
         c.readTimeout = 30000
         c.doOutput = true

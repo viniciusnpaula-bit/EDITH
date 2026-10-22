@@ -10,8 +10,8 @@ android {
         applicationId = "com.edith.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10
-        versionName = "0.4.1"
+        versionCode = 11
+        versionName = "0.4.2"
     }
     // Chave de assinatura fixa do projeto (pública, não é segredo).
     // Sem isso cada build do Actions sai com uma assinatura diferente e o
