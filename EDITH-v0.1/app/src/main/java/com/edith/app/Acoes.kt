@@ -8,6 +8,26 @@ class Acao(val nome: String, private val dados: JSONObject) {
     fun texto(chave: String): String? = dados.optString(chave, "").takeIf { it.isNotBlank() }
     fun inteiro(chave: String, padrao: Int = 0): Int = dados.optInt(chave, padrao)
     fun tem(chave: String): Boolean = dados.has(chave)
+
+    /**
+     * Aceita o formato errado que o modelo às vezes manda: {"abrir_app":"spotify"}.
+     * Devolve uma ação com nome válido e o valor guardado como "app"/"nome".
+     */
+    fun comChaveComoAcao(): Acao {
+        val chaves = dados.keys()
+        while (chaves.hasNext()) {
+            val chave = chaves.next()
+            if (chave == "acao" || chave == "action") continue
+            val valor = dados.opt(chave)
+            if (valor !is String) continue
+            val novo = JSONObject(dados.toString())
+            novo.remove(chave)
+            novo.put("acao", chave)
+            if (!novo.has("app") && !novo.has("nome")) novo.put("nome", valor)
+            return Acao(chave.trim().lowercase(Locale.ROOT), novo)
+        }
+        return this
+    }
 }
 
 /**

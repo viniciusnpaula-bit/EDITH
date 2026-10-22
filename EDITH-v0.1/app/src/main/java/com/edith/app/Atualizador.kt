@@ -17,7 +17,7 @@ import java.net.URL
  */
 class Atualizador(private val activity: Activity) {
 
-    data class Release(val versao: String, val apkUrl: String, val notas: String)
+    data class Release(val versao: String, val apkUrl: String, val notas: String, val build: Int = 0)
 
     companion object {
         const val REPO = "viniciusnpaula-bit/EDITH"
@@ -29,6 +29,14 @@ class Atualizador(private val activity: Activity) {
         activity.packageManager.getPackageInfo(activity.packageName, 0).versionName ?: "0.0.0"
     } catch (e: Exception) {
         "0.0.0"
+    }
+
+    /** versionCode instalado (o "build" que aparece na tag da release). */
+    @Suppress("DEPRECATION")
+    fun buildAtual(): Int = try {
+        activity.packageManager.getPackageInfo(activity.packageName, 0).versionCode
+    } catch (e: Exception) {
+        0
     }
 
     /** Consulta a última release publicada. Lança exceção com mensagem em português. */
@@ -54,13 +62,13 @@ class Atualizador(private val activity: Activity) {
         val dados = Releases.ler(texto)
             ?: throw IllegalStateException("a última versão publicada não tem APK aproveitável")
 
-        return Release(dados.versao, dados.apkUrl, dados.notas)
+        return Release(dados.versao, dados.apkUrl, dados.notas, dados.build)
     }
 
     /** Baixa o APK para o cache do app e devolve o arquivo. */
     fun baixar(release: Release): File {
         val pasta = File(activity.cacheDir, "updates").apply { mkdirs() }
-        val destino = File(pasta, "edith-${release.versao}.apk")
+        val destino = File(pasta, "edith-${release.versao}-b${release.build}.apk")
         if (destino.exists() && destino.length() > 0) return destino
 
         val conexao = (URL(release.apkUrl).openConnection() as HttpURLConnection).apply {

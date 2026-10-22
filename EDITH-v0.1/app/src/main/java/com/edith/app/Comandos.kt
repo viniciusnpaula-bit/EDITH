@@ -31,10 +31,22 @@ class Comandos(
     private val prefs = activity.getSharedPreferences("edith", Context.MODE_PRIVATE)
     private var appsCache: List<Pair<String, String>>? = null
 
-    fun executar(acao: Acao): String = try {
+    fun executar(acao: Acao): String {
+        // O modelo às vezes manda a ação como {"abrir_app": "whatsapp"}: sem nome, usa a própria chave.
+        val acao = if (acao.nome.isBlank() || acao.nome == "json") acao.comChaveComoAcao() else acao
+        return try {
+            executarSeguro(acao)
+        } catch (e: Exception) {
+            android.util.Log.e("EDITH-Comandos", "Falha ao executar ${acao.nome}", e)
+            "Falhou (${acao.nome}): ${e.message ?: e.javaClass.simpleName}"
+        }
+    }
+
+    private fun executarSeguro(acao: Acao): String = try {
         when (acao.nome) {
             "abrir_app", "abrir", "abrir_aplicativo" -> abrirApp(
-                acao.texto("app") ?: acao.texto("nome") ?: acao.texto("pacote") ?: ""
+                acao.texto("app") ?: acao.texto("nome") ?: acao.texto("pacote")
+                    ?: acao.texto(acao.nome) ?: ""
             )
             "listar_apps", "apps" -> listarApps()
             "lanterna" -> lanterna(acao.texto("estado") ?: "alternar")
@@ -50,6 +62,7 @@ class Comandos(
             else -> "Não conheço a ação \"${acao.nome}\"."
         }
     } catch (e: Exception) {
+        android.util.Log.e("EDITH-Comandos", "Falha ao executar ${acao.nome}", e)
         "Falhou (${acao.nome}): ${e.message ?: e.javaClass.simpleName}"
     }
 
@@ -83,6 +96,10 @@ class Comandos(
     private fun abrirApp(nomeBruto: String): String {
         val alvo = normalizar(nomeBruto)
         if (alvo.isBlank()) return "Não sei qual app abrir."
+        // Pacote direto (com.spotify.music) não passa pelo Android 11+ sem <queries>.
+        if (nomeBruto.contains(".") && !nomeBruto.contains(" ")) {
+            abrirPorPacote(nomeBruto.trim())?.let { return it }
+        }
 
         val apps = try {
             appsInstalados()
@@ -157,6 +174,21 @@ class Comandos(
             android.util.Log.e("EDITH-Comandos", "Falha ao abrir $pacote", e)
             "Não consegui abrir ${escolhido.first}: ${e.message ?: e.javaClass.simpleName}."
         }
+    }
+
+    /** Tenta abrir um pacote mesmo que ele não apareça na lista de apps lançáveis. */
+    private fun abrirPorPacote(pacote: String): String? = try {
+        val intent = activity.packageManager.getLaunchIntentForPackage(pacote)
+        if (intent == null) {
+            null
+        } else {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            activity.startActivity(intent)
+            "Abrindo $pacote."
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("EDITH-Comandos", "Falha ao abrir o pacote $pacote", e)
+        null
     }
 
     /** Lista curta de apps instalados, usada no prompt para a EDITH saber o que existe. */

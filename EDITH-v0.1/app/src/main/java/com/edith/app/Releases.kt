@@ -9,7 +9,7 @@ import org.json.JSONObject
  */
 object Releases {
 
-    data class Dados(val versao: String, val apkUrl: String, val notas: String)
+    data class Dados(val versao: String, val apkUrl: String, val notas: String, val build: Int)
 
     /** Devolve null se o JSON não tiver versão ou APK. */
     fun ler(json: String): Dados? {
@@ -21,8 +21,14 @@ object Releases {
         val versao = Versao.limpar(obj.optString("tag_name"))
         if (versao.isBlank()) return null
         val url = melhorApk(obj.optJSONArray("assets") ?: JSONArray()) ?: return null
-        return Dados(versao, url, obj.optString("body", "").trim())
+        val notas = obj.optString("body", "").trim()
+        return Dados(versao, url, notas, buildDe(notas))
     }
+
+    /** Lê o "build N" que o workflow escreve nas notas da release. Sem ele, 0. */
+    fun buildDe(notas: String): Int =
+        Regex("""(?i)\bbuild\s*[:=]?\s*(\d+)""").find(notas)
+            ?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
 
     /** Prefere o APK de debug (o que o Actions gera), mas aceita qualquer .apk. */
     fun melhorApk(assets: JSONArray): String? {

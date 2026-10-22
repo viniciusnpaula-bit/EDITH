@@ -32,6 +32,7 @@ import java.util.Locale
 
 class MainActivity : Activity() {
     private val history = JSONArray()
+    private var mainThread: Thread? = null
     private lateinit var chatList: LinearLayout
     private lateinit var scroll: ScrollView
     private lateinit var input: EditText
@@ -48,6 +49,17 @@ class MainActivity : Activity() {
     private var ocupado = false
     private lateinit var homeRoot: LinearLayout
     private var settingsKeyInput: EditText? = null
+
+    /** Executa na thread da interface: o app pode estar em segundo plano (ex.: microfone). */
+    private fun naTela(bloco: () -> Unit) {
+        runOnUiThread {
+            try {
+                bloco()
+            } catch (e: Exception) {
+                Log.e("EDITH", "Falha ao atualizar a interface", e)
+            }
+        }
+    }
 
     private val persona = "Você é a EDITH, a IA que vive no celular Android do usuário. " +
         "Responda sempre em português do Brasil, de forma curta (1 a 3 frases), sarcástica e " +
@@ -86,6 +98,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        instalarCapturaDeFalhas()
         window.statusBarColor = Color.parseColor("#05070D")
         window.navigationBarColor = Color.parseColor("#05070D")
         window.decorView.systemUiVisibility = 0
@@ -128,7 +141,7 @@ class MainActivity : Activity() {
             setTextColor(Color.parseColor("#E8EEF7"))
         }
         val version = TextView(this).apply {
-            text = "v0.4.0 · ASSISTENTE PESSOAL"
+            text = "v0.4.1 · ASSISTENTE PESSOAL"
             textSize = 12f
             setTextColor(Color.parseColor("#94A3B8"))
         }
@@ -189,6 +202,7 @@ class MainActivity : Activity() {
             iniciarMicrofone()
         }.apply { contentDescription = "Falar com a EDITH" }
         (micBtn.layoutParams as LinearLayout.LayoutParams).marginEnd = dp(8)
+        mainThread = Thread.currentThread()
         sendBtn = botaoRedondo("➤", "#35D6E8", "#05070D", 46) {
             enviar()
         }.apply { contentDescription = "Enviar mensagem" }
@@ -252,6 +266,10 @@ class MainActivity : Activity() {
     }
 
     private fun atualizarEstado(estado: String) {
+        if (Thread.currentThread() !== mainThread) {
+            naTela { atualizarEstado(estado) }
+            return
+        }
         val cor = when (estado) {
             "ouvindo" -> "#F59E0B"
             "pensando" -> "#35D6E8"
@@ -333,6 +351,38 @@ class MainActivity : Activity() {
         scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
     }
 
+    /** Guarda o stack trace da próxima queda para o usuário copiar em Configurações. */
+    private fun instalarCapturaDeFalhas() {
+        val anterior = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, erro ->
+            Diagnostico.registrar(this, erro, "thread ${thread.name}")
+            anterior?.uncaughtException(thread, erro)
+        }
+    }
+
+    private fun abrirDiagnostico() {
+        val relatorio = Diagnostico.ultimo(this)
+        val texto = if (relatorio.isBlank()) {
+            "Nenhuma falha registrada desde a última limpeza. Se a EDITH fechar, o erro aparece aqui."
+        } else {
+            relatorio
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Última falha registrada")
+            .setMessage(texto)
+            .setPositiveButton("Copiar") { _, _ ->
+                val area = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                area.setPrimaryClip(android.content.ClipData.newPlainText("EDITH log", texto))
+                Toast.makeText(this, "Relatório copiado.", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Limpar") { _, _ ->
+                Diagnostico.limpar(this)
+                Toast.makeText(this, "Diagnóstico limpo.", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Fechar", null)
+            .show()
+    }
+
     private fun abrirConfiguracoes() {
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -408,8 +458,7 @@ class MainActivity : Activity() {
                 Toast.makeText(this, "Chave da API salva neste aparelho.", Toast.LENGTH_SHORT).show()
                 setContentView(homeRoot)
                 escrever("EDITH", "Conexão configurada. Estou pronta.")
-                settingsKeyInput = null
-            }
+                settingsKeyInput = null            }
         }.apply {
             text = "Salvar chave"
             layoutParams = LinearLayout.LayoutParams(
@@ -422,8 +471,23 @@ class MainActivity : Activity() {
             setTextColor(Color.parseColor("#64748B"))
             setPadding(0, dp(12), 0, 0)
         })
+        page.addView(TextView(this).apply {
+            text = "DIAGNÓSTICO"
+            textSize = 12f
+            letterSpacing = 0.12f
+            setTextColor(Color.parseColor("#35D6E8"))
+            setPadding(0, dp(28), 0, dp(10))
+        })
+        page.addView(botaoRedondo("Ver último erro registrado", "#0E1524", "#94A3B8", 52) {
+            abrirDiagnostico()
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
+            )
+        })
         page.addView(botaoRedondo("Verificar atualização  ⟳", "#0E1524", "#35D6E8", 52) {
             setContentView(homeRoot)
+            escrever("EDITH", "⟳ procura atualização")
             verificarAtualizacao()
         }.apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -455,20 +519,20 @@ class MainActivity : Activity() {
                 recognizer.setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) {
                         listening = true
-                        micBtn.text = "■"
-                        atualizarEstado("ouvindo")
-                        escrever("EDITH", "Estou ouvindo...")
+                        naTela {
+                            micBtn.text = "■"
+                            atualizarEstado("ouvindo")
+                            escrever("EDITH", "Estou ouvindo...")
+                        }
                     }
                     override fun onBeginningOfSpeech() {}
                     override fun onRmsChanged(rmsdB: Float) {}
                     override fun onBufferReceived(buffer: ByteArray?) {}
                     override fun onEndOfSpeech() {
-                        micBtn.text = "…"
+                        naTela { micBtn.text = "…" }
                     }
                     override fun onError(error: Int) {
                         listening = false
-                        micBtn.text = "🎙"
-                        atualizarEstado("idle")
                         val msg = when (error) {
                             SpeechRecognizer.ERROR_NO_MATCH -> "Não entendi o que você disse. Tente novamente."
                             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Não ouvi nenhuma fala. Toque no microfone e tente novamente."
@@ -476,22 +540,28 @@ class MainActivity : Activity() {
                             SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "O reconhecimento de voz está ocupado. Aguarde um instante."
                             else -> "O reconhecimento de voz falhou (código $error). Tente novamente."
                         }
-                        escrever("EDITH", msg)
+                        naTela {
+                            micBtn.text = "🎙"
+                            atualizarEstado("idle")
+                            escrever("EDITH", msg)
+                        }
                     }
                     override fun onResults(results: Bundle?) {
                         listening = false
-                        micBtn.text = "🎙"
-                        atualizarEstado("idle")
                         val recognized = results
                             ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                             ?.firstOrNull().orEmpty()
-                        if (recognized.isNotBlank()) {
-                            input.setText(recognized)
-                            input.setSelection(input.text.length)
-                            escrever("EDITH", "Entendi: \"$recognized\". Vou responder.")
-                            enviar()
-                        } else {
-                            escrever("EDITH", "Não consegui transformar essa fala em texto. Tente novamente.")
+                        naTela {
+                            micBtn.text = "🎙"
+                            atualizarEstado("idle")
+                            if (recognized.isNotBlank()) {
+                                input.setText(recognized)
+                                input.setSelection(input.text.length)
+                                escrever("EDITH", "Entendi: \"$recognized\". Vou responder.")
+                                enviar()
+                            } else {
+                                escrever("EDITH", "Não consegui transformar essa fala em texto. Tente novamente.")
+                            }
                         }
                     }
                     override fun onPartialResults(partialResults: Bundle?) {}
@@ -513,18 +583,22 @@ class MainActivity : Activity() {
             speechRecognizer?.startListening(intent)
         } catch (e: Exception) {
             listening = false
-            micBtn.text = "🎙"
-            atualizarEstado("idle")
-            escrever("EDITH", "Não consegui iniciar o microfone: ${e.message ?: "erro desconhecido"}.")
+            naTela {
+                micBtn.text = "🎙"
+                atualizarEstado("idle")
+                escrever("EDITH", "Não consegui iniciar o microfone: ${e.message ?: "erro desconhecido"}.")
+            }
         }
     }
 
     private fun pararMicrofone() {
         speechRecognizer?.cancel()
         listening = false
-        micBtn.text = "🎙"
-        atualizarEstado("idle")
-        escrever("EDITH", "Escuta cancelada.")
+        naTela {
+            micBtn.text = "🎙"
+            atualizarEstado("idle")
+            escrever("EDITH", "Escuta cancelada.")
+        }
     }
 
     @Deprecated("Callback de permissão mantido para compatibilidade")
@@ -561,8 +635,9 @@ class MainActivity : Activity() {
         if (texto.isEmpty()) return
         val key = prefs().getString("key", "") ?: ""
         if (key.isEmpty()) {
-            escrever("EDITH", "Primeiro toque em Chave e cole sua chave da Groq.")
-            return        }
+            escrever("EDITH", "Primeiro toque em ⚙ e cole sua chave da Groq.")
+            return
+        }
         input.setText("")
         escrever("Você", texto)
         history.put(JSONObject().put("role", "user").put("content", texto))
@@ -621,9 +696,34 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun chamarGroq(key: String): String {
+    /**
+     * A Groq (e qualquer API compatível com OpenAI) recusa duas mensagens "system"
+     * seguidas. O resultado do aparelho entra no histórico como system, então ele
+     * é anexado à última mensagem do usuário.
+     */
+    private fun mensagensParaApi(): JSONArray {
         val msgs = JSONArray().put(JSONObject().put("role", "system").put("content", sistema()))
-        for (i in 0 until history.length()) msgs.put(history.getJSONObject(i))
+        var i = 0
+        while (i < history.length()) {
+            val atual = history.getJSONObject(i)
+            if (atual.optString("role") == "system") {
+                val anterior = if (msgs.length() > 1) msgs.getJSONObject(msgs.length() - 1) else null
+                if (anterior != null) {
+                    val juntar = anterior.optString("content") + "\n\n" + atual.optString("content")
+                    anterior.put("content", juntar)
+                } else {
+                    msgs.put(atual)
+                }
+            } else {
+                msgs.put(atual)
+            }
+            i++
+        }
+        return msgs
+    }
+
+    private fun chamarGroq(key: String): String {
+        val msgs = mensagensParaApi()
         val body = JSONObject()
             .put("model", "openai/gpt-oss-120b")
             .put("messages", msgs)
@@ -633,7 +733,7 @@ class MainActivity : Activity() {
         c.requestMethod = "POST"
         c.setRequestProperty("Authorization", "Bearer $key")
         c.setRequestProperty("Content-Type", "application/json")
-        c.setRequestProperty("User-Agent", "EDITH/0.4.0")
+        c.setRequestProperty("User-Agent", "EDITH/0.4.1")
         c.connectTimeout = 15000
         c.readTimeout = 30000
         c.doOutput = true
@@ -642,7 +742,17 @@ class MainActivity : Activity() {
         val code = c.responseCode
         val stream = if (code in 200..299) c.inputStream else c.errorStream
         val txt = stream.bufferedReader().use { it.readText() }
-        if (code !in 200..299) return "Erro $code: $txt"
+        if (code !in 200..299) {
+            // Erro de API não entra no histórico: envenenaria a próxima chamada.
+            Log.w("EDITH", "Groq respondeu $code")
+            val detalhe = when {
+                code == 401 || code == 403 -> "A chave da Groq foi recusada. Toque em ⚙ e confira a chave."
+                code == 429 -> "A Groq pediu calma: muitas chamadas seguidas. Tente em alguns segundos."
+                code in 500..599 -> "A Groq está fora do ar agora. Tente de novo em instantes."
+                else -> "A Groq recusou o pedido (HTTP $code)."
+            }
+            return detalhe
+        }
 
         val out = JSONObject(txt).getJSONArray("choices").getJSONObject(0)
             .getJSONObject("message").getString("content")
@@ -665,8 +775,11 @@ class MainActivity : Activity() {
             try {
                 val release = atualizador.buscarRelease()
                 val atual = atualizador.versaoAtual()
+                // A tag da release é a mesma enquanto o APK muda: o build é que conta.
+                val jaAtualizado = !Versao.maisNova(release.versao, atual) &&
+                    release.build <= atualizador.buildAtual()
                 runOnUiThread {
-                    if (Versao.maisNova(release.versao, atual)) {
+                    if (!jaAtualizado) {
                         oferecerAtualizacao(release, atual)
                     } else {
                         escrever("EDITH", "Você já está na $atual, a mais nova. Continue me subestimando.")
@@ -685,7 +798,10 @@ class MainActivity : Activity() {
         falar("Saiu a ${release.versao}. Quer que eu instale?")
         AlertDialog.Builder(this)
             .setTitle("EDITH ${release.versao} disponível")
-            .setMessage("Você está na $atual. Baixar e instalar agora?")
+            .setMessage(
+                "Você está na $atual (build ${atualizador.buildAtual()}). " +
+                    "A nova é a build ${release.build}. Baixar e instalar agora?"
+            )
             .setPositiveButton("Instalar") { _, _ -> baixarEInstalar(release) }
             .setNegativeButton("Agora não", null)
             .show()
@@ -693,6 +809,15 @@ class MainActivity : Activity() {
 
     private fun baixarEInstalar(release: Atualizador.Release) {
         escrever("EDITH", "Baixando a ${release.versao}. Não me interrompa.")
+        // Sem esta permissão o download é inútil: pede antes de gastar dados.
+        if (!atualizador.podeInstalar()) {
+            escrever(
+                "EDITH",
+                "O Android precisa da sua autorização: ligue \"Permitir desta fonte\" e toque em ⟳ de novo."
+            )
+            atualizador.pedirPermissaoInstalacao()
+            return
+        }
         Thread {
             try {
                 val apk = atualizador.baixar(release)
@@ -725,9 +850,15 @@ class MainActivity : Activity() {
         Thread {
             try {
                 val release = atualizador.buscarRelease()
-                if (Versao.maisNova(release.versao, atualizador.versaoAtual())) {
+                val buildAtual = atualizador.buildAtual()
+                val novidade = Versao.maisNova(release.versao, atualizador.versaoAtual()) ||
+                    release.build > buildAtual
+                if (novidade) {
                     runOnUiThread {
-                        escrever("EDITH", "Saiu a ${release.versao}. Toque em ⟳ que eu instalo.")
+                        escrever(
+                            "EDITH",
+                            "Saiu a ${release.versao} (build ${release.build}). Toque em ⟳ que eu instalo."
+                        )
                     }
                 }
             } catch (e: Exception) {

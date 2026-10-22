@@ -22,7 +22,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.7
-      - run: gradle assembleDebug --no-daemon
+      # Falha aqui (e não no celular) se algum arquivo .kt nem compila.
+      - name: Compilar
+        run: gradle assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: EDITH-apk
@@ -33,8 +35,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -1)
-          echo "Versão detectada: $VERSION"
-          gh release delete "v$VERSION" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "v$VERSION" app/build/outputs/apk/debug/app-debug.apk \
-            --title "EDITH $VERSION" \
-            --notes "APK gerado automaticamente pelo GitHub Actions."
+          BUILD=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts | head -1)
+          echo "Versão detectada: $VERSION (build $BUILD)"
+          # A tag leva o build: dois commits com a mesma versionName viram releases distintas
+          # e o app compara o build para saber se já está atualizado.
+          TAG="v$VERSION+b$BUILD"
+          gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk \
+            --title "EDITH $VERSION (build $BUILD)" \
+            --notes "build: $BUILD
+
+          APK gerado automaticamente pelo GitHub Actions a partir do commit $GITHUB_SHA."
