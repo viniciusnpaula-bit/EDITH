@@ -11,7 +11,7 @@ class Acao(val nome: String, private val dados: JSONObject) {
 
     /**
      * Aceita o formato errado que o modelo às vezes manda: {"abrir_app":"spotify"}.
-     * Devolve uma ação com nome válido e o valor guardado como "app"/"nome".
+     * Devolve uma ação com nome válido e o valor guardado como "app".
      */
     fun comChaveComoAcao(): Acao {
         val chaves = dados.keys()
@@ -23,7 +23,7 @@ class Acao(val nome: String, private val dados: JSONObject) {
             val novo = JSONObject(dados.toString())
             novo.remove(chave)
             novo.put("acao", chave)
-            if (!novo.has("app") && !novo.has("nome")) novo.put("nome", valor)
+            if (!novo.has("app") && !novo.has("nome")) novo.put("app", valor)
             return Acao(chave.trim().lowercase(Locale.ROOT), novo)
         }
         return this

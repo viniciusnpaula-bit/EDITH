@@ -47,7 +47,8 @@ class ParserAcoesTest {
         assertEquals(1, acoes.size)
         val corrigida = acoes[0].comChaveComoAcao()
         assertEquals("abrir_app", corrigida.nome)
-        assertEquals("spotify", corrigida.texto("nome"))
+        // O valor vira "app" (o nome que o executor lê primeiro).
+        assertEquals("spotify", corrigida.texto("app"))
     }
 
     @Test
