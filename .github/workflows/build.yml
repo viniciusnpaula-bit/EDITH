@@ -24,7 +24,7 @@ jobs:
           gradle-version: 8.7
       # Primeiro os testes: ParserAcoes, Versao e Releases já derrubaram o app no celular.
       - name: Testes
-        run: gradle testDebugUnitTest --no-daemon
+        run: gradle testDebugUnitTest --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

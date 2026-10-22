@@ -37,9 +37,17 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    testOptions {
+        unitTests {
+            // Sem isso, org.json é um stub que lança "not mocked" e nenhum teste roda.
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
     // Versao, Releases e ParserAcoes são Kotlin puro: dá para testar no Actions, sem celular.
     testImplementation("junit:junit:4.13.2")
+    // Implementação real de org.json no teste de unidade (o Android só a tem no aparelho).
+    testImplementation("org.json:json:20240303")
 }
