@@ -14,19 +14,23 @@ class Acao(val nome: String, private val dados: JSONObject) {
      * Devolve uma ação com nome válido e o valor guardado como "app".
      */
     fun comChaveComoAcao(): Acao {
+        // Cópia em memória: o JSONObject do Android não devolve as chaves em ordem previsível.
+        val copia = LinkedHashMap<String, Any?>()
         val chaves = dados.keys()
         while (chaves.hasNext()) {
             val chave = chaves.next()
-            if (chave == "acao" || chave == "action") continue
-            val valor = dados.opt(chave)
-            if (valor !is String) continue
-            val novo = JSONObject(dados.toString())
-            novo.remove(chave)
-            novo.put("acao", chave)
-            if (!novo.has("app") && !novo.has("nome")) novo.put("app", valor)
-            return Acao(chave.trim().lowercase(Locale.ROOT), novo)
+            copia[chave] = dados.opt(chave)
         }
-        return this
+        val candidata = copia.keys.firstOrNull { chave ->
+            chave != "acao" && chave != "action" && copia[chave] is String
+        } ?: return this
+        val valor = copia[candidata] as String
+        copia.remove(candidata)
+        copia["acao"] = candidata
+        if (!copia.containsKey("app") && !copia.containsKey("nome")) copia["app"] = valor
+        val novo = JSONObject()
+        copia.forEach { (chave, v) -> novo.put(chave, v) }
+        return Acao(candidata.trim().lowercase(Locale.ROOT), novo)
     }
 }
 
