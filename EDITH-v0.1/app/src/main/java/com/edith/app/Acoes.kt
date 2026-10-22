@@ -13,6 +13,11 @@ class Acao(val nome: String, private val dados: JSONObject) {
      * Aceita o formato errado que o modelo às vezes manda: {"abrir_app":"spotify"}.
      * Devolve uma ação com nome válido e o valor guardado como "app".
      */
+    private val parametros = setOf(
+        "acao", "action", "app", "nome", "pacote", "estado", "nivel", "delta", "fluxo",
+        "hora", "label", "segundos", "minutos", "texto", "titulo", "inicio", "termo"
+    )
+
     fun comChaveComoAcao(): Acao {
         // Cópia em memória: o JSONObject do Android não devolve as chaves em ordem previsível.
         val copia = LinkedHashMap<String, Any?>()
@@ -21,8 +26,10 @@ class Acao(val nome: String, private val dados: JSONObject) {
             val chave = chaves.next()
             copia[chave] = dados.opt(chave)
         }
+        // A ação é a chave que nomeia um verbo conhecido; qualquer outra chave é parâmetro.
+        // O JSONObject do Android não guarda a ordem de inserção, então ordem não serve.
         val candidata = copia.keys.firstOrNull { chave ->
-            chave != "acao" && chave != "action" && copia[chave] is String
+            chave !in parametros && copia[chave] is String
         } ?: return this
         val valor = copia[candidata] as String
         copia.remove(candidata)
