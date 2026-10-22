@@ -1,6 +1,7 @@
 package com.edith.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -53,9 +54,19 @@ class ParserAcoesTest {
     }
 
     @Test
-    fun comandoIlegivelFicaNoTexto() {
+    fun comandoIlegivelNaoQuebraNemInventaAcao() {
+        // JSON inválido: nada é executado. O marcador pode sumir do texto falado —
+        // o importante é não vazar "[[acao]]" na voz nem executar lixo.
         val (texto, acoes) = ParserAcoes.extrair("[[ACAO]] {isso não é json}")
         assertTrue(acoes.isEmpty())
-        assertTrue(texto.contains("[[ACAO]]"))
+        assertFalse(texto.contains("[[ACAO]]"))
+    }
+
+    @Test
+    fun jsonSoltoNoMeioDaFraseVirarComando() {
+        val (texto, acoes) = ParserAcoes.extrair("Claro. {\"acao\":\"abrir_app\",\"app\":\"whatsapp\"} Já abri.")
+        assertEquals(1, acoes.size)
+        assertEquals("abrir_app", acoes[0].nome)
+        assertFalse(texto.contains("\"acao\""))
     }
 }
