@@ -10,8 +10,8 @@ android {
         applicationId = "com.edith.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 11
-        versionName = "0.4.2"
+        versionCode = 12
+        versionName = "0.4.3"
     }
     // Chave de assinatura fixa do projeto (pública, não é segredo).
     // Sem isso cada build do Actions sai com uma assinatura diferente e o
@@ -37,4 +37,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+}
+
+dependencies {
+    // Versao, Releases e ParserAcoes são Kotlin puro: dá para testar no Actions, sem celular.
+    testImplementation("junit:junit:4.13.2")
 }

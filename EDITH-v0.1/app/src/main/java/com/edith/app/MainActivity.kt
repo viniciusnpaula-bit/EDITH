@@ -142,7 +142,7 @@ class MainActivity : Activity() {
             setTextColor(Color.parseColor("#E8EEF7"))
         }
         val version = TextView(this).apply {
-            text = "v0.4.2 · ASSISTENTE PESSOAL"
+            text = "v0.4.3 · ASSISTENTE PESSOAL"
             textSize = 12f
             setTextColor(Color.parseColor("#94A3B8"))
         }
@@ -756,7 +756,7 @@ class MainActivity : Activity() {
         c.requestMethod = "POST"
         c.setRequestProperty("Authorization", "Bearer $key")
         c.setRequestProperty("Content-Type", "application/json")
-        c.setRequestProperty("User-Agent", "EDITH/0.4.2")
+        c.setRequestProperty("User-Agent", "EDITH/0.4.3")
         c.connectTimeout = 15000
         c.readTimeout = 30000
         c.doOutput = true
