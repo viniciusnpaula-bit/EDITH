@@ -34,6 +34,14 @@ import java.util.Locale
 class MainActivity : Activity() {
     private val history = JSONArray()
     private var mainThread: Thread? = null
+    private lateinit var memoria: Memoria
+    private var escutaContinua = true
+    private var falarRespostas = true
+    private var ultimaFala = ""
+    /** Reabre o microfone sozinho depois da resposta, por alguns segundos. */
+    private var retomarEscuta = false
+    private var tempoParaEscutar: Runnable? = null
+    private val mao = android.os.Handler(android.os.Looper.getMainLooper())
     private lateinit var chatList: LinearLayout
     private lateinit var scroll: ScrollView
     private lateinit var input: EditText
@@ -145,7 +153,7 @@ class MainActivity : Activity() {
             setTextColor(Color.parseColor("#E8EEF7"))
         }
         val version = TextView(this).apply {
-            text = "v0.5.0 · ASSISTENTE PESSOAL"
+            text = "v0.6.0 · ASSISTENTE PESSOAL"
             textSize = 12f
             setTextColor(Color.parseColor("#94A3B8"))
         }
@@ -217,11 +225,22 @@ class MainActivity : Activity() {
         root.addView(top)
         root.addView(scroll)
         root.addView(bottom)
+        root.addView(TextView(this).apply {
+            text = Preferencias.resumo(prefs())
+            textSize = 11f
+            setTextColor(Color.parseColor("#64748B"))
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dp(8), 0, 0)
+        })
         homeRoot = root
         setContentView(root)
 
         atualizador = Atualizador(this)
         comandos = Comandos(this) { verificarAtualizacao() }
+        memoria = Memoria(this)
+        escutaContinua = Preferencias.vozContinua(prefs())
+        falarRespostas = Preferencias.falarRespostas(prefs())
+        restaurarConversa()
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 val result = tts?.setLanguage(Locale("pt", "BR"))
@@ -230,12 +249,14 @@ class MainActivity : Activity() {
             }
         }
 
-        escrever(
-            "EDITH",
-            "Olá. Agora eu mexo no aparelho, não só falo. Tente: \"abre o WhatsApp\", " +
-                "\"acende a lanterna\", \"volume 30\", \"alarme 7:30\", \"brilho 40\" ou \"abre o Wi-Fi\". " +
-                "Para me atualizar, toque em ⟳."
-        )
+        if (history.length() == 0) {
+            escrever(
+                "EDITH",
+                "Olá. Agora eu mexo no aparelho, não só falo. Tente: \"abre o WhatsApp\", " +
+                    "\"acende a lanterna\", \"volume 30\", \"alarme 7:30\", \"brilho 40\" ou \"abre o Wi-Fi\". " +
+                    "Com a escuta contínua ligada, toque uma vez no 🎙 e fale à vontade."
+            )
+        }
         checarAtualizacaoAutomatica()
     }
 
@@ -267,6 +288,43 @@ class MainActivity : Activity() {
         }
         stateListAnimator = null
         setOnClickListener { action() }
+    }
+
+    /** Linha de ajuste com título, explicação e interruptor. */
+    private fun interruptor(
+        titulo: String,
+        explicacao: String,
+        ligadoInicial: Boolean,
+        aoMudar: (Boolean) -> Unit
+    ): LinearLayout {
+        val linha = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(10), 0, dp(10))
+        }
+        val textos = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        textos.addView(TextView(this).apply {
+            text = titulo
+            textSize = 15f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#E8EEF7"))
+        })
+        textos.addView(TextView(this).apply {
+            text = explicacao
+            textSize = 12f
+            setTextColor(Color.parseColor("#94A3B8"))
+            setPadding(0, dp(3), dp(12), 0)
+        })
+        val chave = android.widget.Switch(this).apply {
+            isChecked = ligadoInicial
+            setOnCheckedChangeListener { _, marcado -> aoMudar(marcado) }
+        }
+        linha.addView(textos)
+        linha.addView(chave)
+        return linha
     }
 
     private fun atualizarEstado(estado: String) {
@@ -400,6 +458,27 @@ class MainActivity : Activity() {
             .show()
     }
 
+    /** Repinta as últimas trocas salvas, para a conversa continuar de onde parou. */
+    private fun restaurarConversa() {
+        val salvo = memoria.carregar()
+        val inicio = (salvo.length() - 8).coerceAtLeast(0)
+        for (i in inicio until salvo.length()) {
+            val item = salvo.optJSONObject(i) ?: continue
+            val papel = item.optString("role")
+            val conteudo = item.optString("content").trim()
+            if (conteudo.isBlank()) continue
+            if (papel == "user") {
+                desenharMensagem("Você", conteudo)
+            } else if (papel == "assistant") {
+                desenharMensagem("EDITH", conteudo)
+            }
+            history.put(item)
+        }
+        if (history.length() > 0) {
+            desenharMensagem("EDITH", "(retomando a conversa de antes — memória local)")
+        }
+    }
+
     private fun abrirConfiguracoes() {
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -475,7 +554,8 @@ class MainActivity : Activity() {
                 Toast.makeText(this, "Chave da API salva neste aparelho.", Toast.LENGTH_SHORT).show()
                 setContentView(homeRoot)
                 escrever("EDITH", "Conexão configurada. Estou pronta.")
-                settingsKeyInput = null            }
+                settingsKeyInput = null
+            }
         }.apply {
             text = "Salvar chave"
             layoutParams = LinearLayout.LayoutParams(
@@ -488,6 +568,54 @@ class MainActivity : Activity() {
             setTextColor(Color.parseColor("#64748B"))
             setPadding(0, dp(12), 0, 0)
         })
+        page.addView(TextView(this).apply {
+            text = "VOZ E MEMÓRIA"
+            textSize = 12f
+            letterSpacing = 0.12f
+            setTextColor(Color.parseColor("#35D6E8"))
+            setPadding(0, dp(28), 0, dp(10))
+        })
+        page.addView(interruptor(
+            "Escuta contínua",
+            "Depois de responder, ela volta a ouvir sozinha por alguns segundos.",
+            escutaContinua
+        ) { ligado ->
+            escutaContinua = ligado
+            Preferencias.definir(prefs(), Preferencias.VIVA, ligado)
+        })
+        page.addView(interruptor(
+            "Falar as respostas",
+            "Lê em voz alta o que a EDITH responde.",
+            falarRespostas
+        ) { ligado ->
+            falarRespostas = ligado
+            Preferencias.definir(prefs(), Preferencias.FALAR_RESPOSTAS, ligado)
+            if (!ligado) tts?.stop()
+        })
+        page.addView(TextView(this).apply {
+            text = memoria.resumo(history)
+            textSize = 12f
+            setTextColor(Color.parseColor("#64748B"))
+            setPadding(0, dp(6), 0, dp(10))
+        })
+        page.addView(botaoRedondo("Apagar memória da conversa", "#0E1524", "#94A3B8", 52) {
+            AlertDialog.Builder(this)
+                .setTitle("Apagar a conversa guardada?")
+                .setMessage("A EDITH esquece tudo o que foi dito até aqui neste aparelho.")
+                .setPositiveButton("Apagar") { _, _ ->
+                    memoria.limpar()
+                    while (history.length() > 0) history.remove(0)
+                    setContentView(homeRoot)
+                    escrever("EDITH", "Memória apagada. Quem é você mesmo?")
+                }
+                .setNegativeButton("Cancelar", null)
+                .show()
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
+            )
+        })
+
         page.addView(TextView(this).apply {
             text = "DIAGNÓSTICO"
             textSize = 12f
@@ -527,9 +655,16 @@ class MainActivity : Activity() {
 
     private fun pedirChave() = abrirConfiguracoes()
 
-    private fun iniciarMicrofone() {
+    private fun iniciarMicrofone() = iniciarMicrofoneInterno(false)
+
+    /**
+     * [automatico] = true quando a escuta foi reaberta sozinha depois da resposta.
+     * Nesse modo a EDITH não anuncia "estou ouvindo" nem reclama de silêncio:
+     * se ninguém falou, ela só volta a dormir.
+     */
+    private fun iniciarMicrofoneInterno(automatico: Boolean) {
         if (listening) {
-            pararMicrofone()
+            if (!automatico) pararMicrofone()
             return
         }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -550,7 +685,7 @@ class MainActivity : Activity() {
                         naTela {
                             micBtn.text = "■"
                             atualizarEstado("ouvindo")
-                            escrever("EDITH", "Estou ouvindo...")
+                            if (!automatico) escrever("EDITH", "Estou ouvindo...")
                         }
                     }
                     override fun onBeginningOfSpeech() {}
@@ -571,7 +706,9 @@ class MainActivity : Activity() {
                         naTela {
                             micBtn.text = "🎙"
                             atualizarEstado("idle")
-                            escrever("EDITH", msg)
+                            val silencio = error == SpeechRecognizer.ERROR_NO_MATCH ||
+                                error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                            if (!automatico || !silencio) escrever("EDITH", msg)
                         }
                     }
                     override fun onResults(results: Bundle?) {
@@ -585,9 +722,10 @@ class MainActivity : Activity() {
                             if (recognized.isNotBlank()) {
                                 input.setText(recognized)
                                 input.setSelection(input.text.length)
-                                escrever("EDITH", "Entendi: \"$recognized\". Vou responder.")
+                                if (!automatico) escrever("EDITH", "Entendi: \"$recognized\". Vou responder.")
+                                retomarEscuta = escutaContinua
                                 enviar()
-                            } else {
+                            } else if (!automatico) {
                                 escrever("EDITH", "Não consegui transformar essa fala em texto. Tente novamente.")
                             }
                         }
@@ -683,7 +821,8 @@ class MainActivity : Activity() {
             Log.e("EDITH", "Falha ao desenhar a mensagem do usuário", e)
         }
         history.put(JSONObject().put("role", "user").put("content", texto))
-        while (history.length() > 20) history.remove(0)
+        while (history.length() > 40) history.remove(0)
+        memoria.salvar(history)
         ocupado = true
         sendBtn.isEnabled = false
         sendBtn.alpha = 0.45f
@@ -711,6 +850,7 @@ class MainActivity : Activity() {
                     sendBtn.alpha = 1f
                     thinkingView.visibility = View.GONE
                     atualizarEstado("idle")
+                    agendarProximaEscuta()
                 }
             }
         }.start()
@@ -745,9 +885,10 @@ class MainActivity : Activity() {
      */
     private fun mensagensParaApi(): JSONArray {
         val msgs = JSONArray().put(JSONObject().put("role", "system").put("content", sistema()))
+        val recorte = memoria.paraPrompt(history)
         var i = 0
-        while (i < history.length()) {
-            val atual = history.getJSONObject(i)
+        while (i < recorte.length()) {
+            val atual = recorte.getJSONObject(i)
             if (atual.optString("role") == "system") {
                 val anterior = if (msgs.length() > 1) msgs.getJSONObject(msgs.length() - 1) else null
                 if (anterior != null) {
@@ -775,7 +916,7 @@ class MainActivity : Activity() {
         c.requestMethod = "POST"
         c.setRequestProperty("Authorization", "Bearer $key")
         c.setRequestProperty("Content-Type", "application/json")
-        c.setRequestProperty("User-Agent", "EDITH/0.5.0")
+        c.setRequestProperty("User-Agent", "EDITH/0.6.0")
         c.connectTimeout = 15000
         c.readTimeout = 30000
         c.doOutput = true
@@ -799,13 +940,34 @@ class MainActivity : Activity() {
         val out = JSONObject(txt).getJSONArray("choices").getJSONObject(0)
             .getJSONObject("message").getString("content")
         history.put(JSONObject().put("role", "assistant").put("content", out))
+        memoria.salvar(history)
         return out
     }
 
     private fun falar(texto: String) {
+        if (!falarRespostas) return
         if (ttsReady && texto.isNotBlank()) {
+            ultimaFala = texto
             tts?.speak(texto, TextToSpeech.QUEUE_FLUSH, null, "edith_resposta")
         }
+    }
+
+    /** Depois de responder, reabre o microfone sozinho por alguns segundos. */
+    private fun agendarProximaEscuta() {
+        if (!retomarEscuta || !escutaContinua) {
+            retomarEscuta = false
+            return
+        }
+        retomarEscuta = false
+        tempoParaEscutar?.let { mao.removeCallbacks(it) }
+        val tarefa = Runnable {
+            if (!isFinishing && !listening && checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED) {
+                iniciarMicrofoneInterno(true)
+            }
+        }
+        tempoParaEscutar = tarefa
+        mao.postDelayed(tarefa, 700)
     }
 
     // ---------- modo de ação: upgrade da própria EDITH ----------
@@ -910,6 +1072,8 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        tempoParaEscutar?.let { mao.removeCallbacks(it) }
+        tempoParaEscutar = null
         tts?.stop()
         tts?.shutdown()
         tts = null
