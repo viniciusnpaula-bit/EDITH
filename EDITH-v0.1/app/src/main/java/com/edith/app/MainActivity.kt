@@ -98,7 +98,9 @@ class MainActivity : Activity() {
         - versao: {"acao":"versao"}
         Regras: escreva o texto normal para o usuário e o comando em uma linha separada; no máximo 3
         comandos por resposta; o app executa e devolve o resultado como mensagem de sistema; nunca diga
-        que fez algo sem ter mandado o comando; não invente ações fora da lista. Ligações e SMS ainda
+        que fez algo sem ter mandado o comando; não invente ações fora da lista. NUNCA repita o JSON
+        no meio da frase: o comando vai numa linha só, começando com [[ACAO]]. Não peça confirmação
+        para ações simples (abrir app, lanterna, volume, alarme): execute direto e comente depois. Ligações e SMS ainda
         não estão implementados: diga que está em construção. Wi-Fi, Bluetooth e modo avião ainda não
         ligam sozinhos: use "painel" para abrir o ajuste. Se o pedido não for uma ação no aparelho,
         responda normalmente sem comando.
@@ -111,14 +113,14 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         instalarCapturaDeFalhas()
-        window.statusBarColor = Color.parseColor("#05070D")
-        window.navigationBarColor = Color.parseColor("#05070D")
+        window.statusBarColor = Cores.FUNDO
+        window.navigationBarColor = Cores.FUNDO
         window.decorView.systemUiVisibility = 0
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(12))
-            setBackgroundColor(Color.parseColor("#05070D"))
+            setBackgroundColor(Cores.FUNDO)
         }
         root.setOnApplyWindowInsetsListener { view, insets ->
             view.setPadding(
@@ -136,7 +138,7 @@ class MainActivity : Activity() {
             setPadding(0, dp(8), 0, dp(16))
         }
         statusDot = View(this).apply {
-            background = forma("#35D6E8", 99)
+            background = forma(Cores.PRIMARIA, 99)
             layoutParams = LinearLayout.LayoutParams(dp(9), dp(9)).apply {
                 marginEnd = dp(10)
             }
@@ -150,20 +152,20 @@ class MainActivity : Activity() {
             textSize = 22f
             letterSpacing = 0.06f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(Color.parseColor("#E8EEF7"))
+            setTextColor(Cores.TEXTO)
         }
         val version = TextView(this).apply {
-            text = "v0.6.0 · ASSISTENTE PESSOAL"
+            text = "v0.7.0 · ASSISTENTE PESSOAL"
             textSize = 12f
-            setTextColor(Color.parseColor("#94A3B8"))
+            setTextColor(Cores.TEXTO_SUAVE)
         }
         heading.addView(title)
         heading.addView(version)
-        val upgradeBtn = botaoRedondo("⟳", "#0E1524", "#94A3B8", 42) {
+        val upgradeBtn = botaoRedondo("⟳", Cores.SUPERFICIE, Cores.TEXTO_SUAVE, 42) {
             escrever("Você", "⟳ procura atualização")
             verificarAtualizacao()
         }.apply { contentDescription = "Procurar atualização da EDITH" }
-        val keyBtn = botaoRedondo("⚙", "#0E1524", "#35D6E8", 46) {
+        val keyBtn = botaoRedondo("⚙", Cores.SUPERFICIE, Cores.PRIMARIA, 46) {
             abrirConfiguracoes()
         }.apply { contentDescription = "Abrir configurações" }
         top.addView(statusDot)
@@ -185,7 +187,7 @@ class MainActivity : Activity() {
         thinkingView = TextView(this).apply {
             text = "EDITH está pensando…"
             textSize = 12f
-            setTextColor(Color.parseColor("#94A3B8"))
+            setTextColor(Cores.TEXTO_SUAVE)
             visibility = View.GONE
             setPadding(dp(12), dp(8), dp(12), dp(12))
         }
@@ -202,20 +204,20 @@ class MainActivity : Activity() {
             textSize = 15f
             setSingleLine(false)
             maxLines = 4
-            setTextColor(Color.parseColor("#E8EEF7"))
-            setHintTextColor(Color.parseColor("#94A3B8"))
-            background = forma("#0E1524", 18, "#1E293B")
+            setTextColor(Cores.TEXTO)
+            setHintTextColor(Cores.TEXTO_SUAVE)
+            background = forma(Cores.SUPERFICIE, 18, Cores.BORDA)
             setPadding(dp(16), dp(10), dp(16), dp(10))
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginEnd = dp(8)
             }
         }
-        micBtn = botaoRedondo("🎙", "#0E1524", "#35D6E8", 46) {
+        micBtn = botaoRedondo("🎙", Cores.SUPERFICIE, Cores.PRIMARIA, 46) {
             iniciarMicrofone()
         }.apply { contentDescription = "Falar com a EDITH" }
         (micBtn.layoutParams as LinearLayout.LayoutParams).marginEnd = dp(8)
         mainThread = Thread.currentThread()
-        sendBtn = botaoRedondo("➤", "#35D6E8", "#05070D", 46) {
+        sendBtn = botaoRedondo("➤", Cores.PRIMARIA, Cores.FUNDO, 46) {
             enviar()
         }.apply { contentDescription = "Enviar mensagem" }
         bottom.addView(input)
@@ -228,7 +230,7 @@ class MainActivity : Activity() {
         root.addView(TextView(this).apply {
             text = Preferencias.resumo(prefs())
             textSize = 11f
-            setTextColor(Color.parseColor("#64748B"))
+            setTextColor(Cores.TEXTO_SUAVE)
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(0, dp(8), 0, 0)
         })
@@ -256,8 +258,43 @@ class MainActivity : Activity() {
                     "\"acende a lanterna\", \"volume 30\", \"alarme 7:30\", \"brilho 40\" ou \"abre o Wi-Fi\". " +
                     "Com a escuta contínua ligada, toque uma vez no 🎙 e fale à vontade."
             )
+            atalhosRapidos()
         }
         checarAtualizacaoAutomatica()
+    }
+
+    /** Sugestões tocáveis para começar sem digitar. */
+    private fun atalhosRapidos() {
+        val sugestoes = listOf("Que horas são?", "Acende a lanterna", "Abre o WhatsApp", "Alarme 7:30")
+        val linha = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(6), 0, dp(6))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        sugestoes.forEach { sugestao ->
+            linha.addView(Button(this).apply {
+                text = sugestao
+                textSize = 12f
+                isAllCaps = false
+                setTextColor(Cores.PRIMARIA_ESCURA)
+                background = forma(Cores.CARTAO, 20, Cores.BORDA)
+                stateListAnimator = null
+                minWidth = 0
+                minimumWidth = 0
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { marginEnd = dp(6) }
+                setOnClickListener {
+                    input.setText(sugestao)
+                    enviar()
+                }
+            })
+        }
+        chatList.addView(linha, chatList.childCount - 1)
+        scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
     }
 
     private fun dp(value: Int): Int =
@@ -274,10 +311,10 @@ class MainActivity : Activity() {
         label: String, fill: String, textColorHex: String, sizeDp: Int, action: () -> Unit
     ): Button = Button(this).apply {
         this.text = label
-        textSize = if (label == "Chave") 12f else 18f
+        textSize = if (label.length > 3) 15f else 18f
         isAllCaps = false
         setTextColor(Color.parseColor(textColorHex))
-        background = forma(fill, sizeDp / 2, if (fill == "#0E1524") "#1E293B" else null)
+        background = forma(fill, sizeDp / 2, if (fill == Cores.SUPERFICIE) Cores.BORDA else null)
         minWidth = 0
         minimumWidth = 0
         minHeight = 0
@@ -288,6 +325,28 @@ class MainActivity : Activity() {
         }
         stateListAnimator = null
         setOnClickListener { action() }
+    }
+
+    /** Botão de largura total, com texto legível. */
+    private fun botaoLargo(
+        label: String,
+        fill: String = Cores.SUPERFICIE,
+        textoCor: String = Cores.PRIMARIA,
+        acao: () -> Unit
+    ): Button = Button(this).apply {
+        text = label
+        textSize = 15f
+        isAllCaps = false
+        setTextColor(Cores.cor(textoCor))
+        background = forma(fill, 14, Cores.BORDA)
+        stateListAnimator = null
+        minHeight = 0
+        minimumHeight = 0
+        setPadding(dp(16), dp(14), dp(16), dp(14))
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(8) }
+        setOnClickListener { acao() }
     }
 
     /** Linha de ajuste com título, explicação e interruptor. */
@@ -310,12 +369,12 @@ class MainActivity : Activity() {
             text = titulo
             textSize = 15f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(Color.parseColor("#E8EEF7"))
+            setTextColor(Cores.TEXTO)
         })
         textos.addView(TextView(this).apply {
             text = explicacao
             textSize = 12f
-            setTextColor(Color.parseColor("#94A3B8"))
+            setTextColor(Cores.TEXTO_SUAVE)
             setPadding(0, dp(3), dp(12), 0)
         })
         val chave = android.widget.Switch(this).apply {
@@ -333,9 +392,9 @@ class MainActivity : Activity() {
             return
         }
         val cor = when (estado) {
-            "ouvindo" -> "#F59E0B"
-            "pensando" -> "#35D6E8"
-            else -> "#35D6E8"
+            "ouvindo" -> Cores.ALERTA
+            "pensando" -> Cores.PRIMARIA
+            else -> Cores.PRIMARIA
         }
         statusDot.background = forma(cor, 99)
         if (estado == "pensando" || estado == "ouvindo") {
@@ -346,7 +405,7 @@ class MainActivity : Activity() {
             statusDot.animate().cancel()
             statusDot.alpha = 1f
         }
-        micBtn.background = forma(if (estado == "ouvindo") "#F59E0B" else "#0E1524", 99, "#1E293B")
+        micBtn.background = forma(if (estado == "ouvindo") Cores.ALERTA else Cores.SUPERFICIE, 99, Cores.BORDA)
     }
     private fun prefs() = getSharedPreferences("edith", MODE_PRIVATE)
 
@@ -381,13 +440,13 @@ class MainActivity : Activity() {
                 maxWidth.coerceAtLeast(dp(180)), ViewGroup.LayoutParams.WRAP_CONTENT
             )
             setPadding(dp(14), dp(10), dp(14), dp(10))
-            background = if (actionMessage) forma("#05070D", 4, "#1E293B")
-                else if (isUser) forma("#12303A", 18)
-                else forma("#0E1524", 18, "#1E293B")
+            background = if (actionMessage) forma(Cores.FUNDO, 4, Cores.BORDA)
+                else if (isUser) forma(Cores.BOLHA_USUARIO, 18)
+                else forma(Cores.SUPERFICIE, 18, Cores.BORDA)
         }
         if (actionMessage) {
             val stripe = View(this).apply {
-                background = forma("#35D6E8", 2)
+                background = forma(Cores.PRIMARIA, 2)
                 layoutParams = LinearLayout.LayoutParams(dp(3), dp(24)).apply {
                     marginEnd = dp(9)
                 }
@@ -400,7 +459,7 @@ class MainActivity : Activity() {
             val actionText = TextView(this).apply {
                 text = "⚙ Aparelho  ·  $texto"
                 textSize = 12f
-                setTextColor(Color.parseColor("#94A3B8"))
+                setTextColor(Cores.TEXTO_SUAVE)
             }
             actionRow.addView(actionText)
             bubble.addView(actionRow)
@@ -409,13 +468,13 @@ class MainActivity : Activity() {
                 text = quem.uppercase(Locale("pt", "BR"))
                 textSize = 12f
                 letterSpacing = 0.05f
-                setTextColor(Color.parseColor(if (isUser) "#9FEAF2" else "#94A3B8"))
+                setTextColor(Cores.cor(if (isUser) Cores.PRIMARIA_ESCURA else Cores.TEXTO_SUAVE))
                 alpha = 0.9f
             }
             val body = TextView(this).apply {
                 text = texto
                 textSize = 15f
-                setTextColor(Color.parseColor("#E8EEF7"))
+                setTextColor(Cores.TEXTO)
                 setLineSpacing(dp(2).toFloat(), 1f)
             }
             bubble.addView(sender)
@@ -482,14 +541,19 @@ class MainActivity : Activity() {
     private fun abrirConfiguracoes() {
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(18), dp(22), dp(24))
-            setBackgroundColor(Color.parseColor("#05070D"))
+            setPadding(dp(22), dp(18), dp(22), dp(32))
+            setBackgroundColor(Cores.FUNDO)
+        }
+        // A tela de ajustes precisa rolar: em tela pequena o botão de salvar sumia.
+        val rolagem = ScrollView(this).apply {
+            isFillViewport = true
+            addView(page)
         }
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val back = botaoRedondo("‹", "#0E1524", "#35D6E8", 44) {
+        val back = botaoRedondo("‹", Cores.SUPERFICIE, Cores.PRIMARIA, 44) {
             settingsKeyInput = null
             setContentView(homeRoot)
         }.apply { contentDescription = "Voltar para a EDITH" }
@@ -502,12 +566,12 @@ class MainActivity : Activity() {
             text = "Configurações"
             textSize = 23f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(Color.parseColor("#E8EEF7"))
+            setTextColor(Cores.TEXTO)
         })
         heading.addView(TextView(this).apply {
             text = "Personalize sua assistente"
             textSize = 13f
-            setTextColor(Color.parseColor("#94A3B8"))
+            setTextColor(Cores.TEXTO_SUAVE)
         })
         header.addView(back)
         header.addView(heading)
@@ -517,19 +581,19 @@ class MainActivity : Activity() {
             text = "CONEXÃO COM A IA"
             textSize = 12f
             letterSpacing = 0.12f
-            setTextColor(Color.parseColor("#35D6E8"))
+            setTextColor(Cores.PRIMARIA)
             setPadding(0, dp(34), 0, dp(10))
         })
         page.addView(TextView(this).apply {
             text = "Chave da API Groq"
             textSize = 16f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(Color.parseColor("#E8EEF7"))
+            setTextColor(Cores.TEXTO)
         })
         page.addView(TextView(this).apply {
             text = "Cole sua chave aqui. Ela fica salva localmente neste aparelho."
             textSize = 13f
-            setTextColor(Color.parseColor("#94A3B8"))
+            setTextColor(Cores.TEXTO_SUAVE)
             setPadding(0, dp(6), 0, dp(12))
         })
         settingsKeyInput = EditText(this).apply {
@@ -537,15 +601,15 @@ class MainActivity : Activity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             setSingleLine(true)
             setText(prefs().getString("key", "") ?: "")
-            setTextColor(Color.parseColor("#E8EEF7"))
-            setHintTextColor(Color.parseColor("#64748B"))
-            background = forma("#0E1524", 16, "#1E293B")
+            setTextColor(Cores.TEXTO)
+            setHintTextColor(Cores.TEXTO_SUAVE)
+            background = forma(Cores.SUPERFICIE, 16, Cores.BORDA)
             setPadding(dp(15), dp(14), dp(15), dp(14))
         }
         page.addView(settingsKeyInput, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
-        page.addView(botaoRedondo("Salvar chave", "#35D6E8", "#05070D", 52) {
+        page.addView(botaoLargo("Salvar chave", Cores.PRIMARIA, Cores.FUNDO) {
             val key = settingsKeyInput?.text?.toString()?.trim().orEmpty()
             if (key.isBlank()) {
                 Toast.makeText(this, "Cole uma chave da Groq antes de salvar.", Toast.LENGTH_LONG).show()
@@ -556,23 +620,18 @@ class MainActivity : Activity() {
                 escrever("EDITH", "Conexão configurada. Estou pronta.")
                 settingsKeyInput = null
             }
-        }.apply {
-            text = "Salvar chave"
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
-            ).apply { topMargin = dp(14) }
         })
         page.addView(TextView(this).apply {
             text = "A chave não deve ser compartilhada. Ela é armazenada nas preferências privadas do aplicativo."
             textSize = 12f
-            setTextColor(Color.parseColor("#64748B"))
+            setTextColor(Cores.TEXTO_SUAVE)
             setPadding(0, dp(12), 0, 0)
         })
         page.addView(TextView(this).apply {
             text = "VOZ E MEMÓRIA"
             textSize = 12f
             letterSpacing = 0.12f
-            setTextColor(Color.parseColor("#35D6E8"))
+            setTextColor(Cores.PRIMARIA)
             setPadding(0, dp(28), 0, dp(10))
         })
         page.addView(interruptor(
@@ -595,10 +654,10 @@ class MainActivity : Activity() {
         page.addView(TextView(this).apply {
             text = memoria.resumo(history)
             textSize = 12f
-            setTextColor(Color.parseColor("#64748B"))
+            setTextColor(Cores.TEXTO_SUAVE)
             setPadding(0, dp(6), 0, dp(10))
         })
-        page.addView(botaoRedondo("Apagar memória da conversa", "#0E1524", "#94A3B8", 52) {
+        page.addView(botaoLargo("Apagar memória da conversa", Cores.SUPERFICIE, Cores.TEXTO_SUAVE) {
             AlertDialog.Builder(this)
                 .setTitle("Apagar a conversa guardada?")
                 .setMessage("A EDITH esquece tudo o que foi dito até aqui neste aparelho.")
@@ -610,47 +669,31 @@ class MainActivity : Activity() {
                 }
                 .setNegativeButton("Cancelar", null)
                 .show()
-        }.apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
-            )
         })
 
         page.addView(TextView(this).apply {
             text = "DIAGNÓSTICO"
             textSize = 12f
             letterSpacing = 0.12f
-            setTextColor(Color.parseColor("#35D6E8"))
+            setTextColor(Cores.PRIMARIA)
             setPadding(0, dp(28), 0, dp(10))
         })
-        page.addView(botaoRedondo("Ver último erro registrado", "#0E1524", "#94A3B8", 52) {
+        page.addView(botaoLargo("Ver último erro registrado", Cores.SUPERFICIE, Cores.TEXTO_SUAVE) {
             abrirDiagnostico()
-        }.apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
-            )
         })
-        page.addView(botaoRedondo("Ver apps que a EDITH enxerga", "#0E1524", "#94A3B8", 52) {
+        page.addView(botaoLargo("Ver apps que a EDITH enxerga", Cores.SUPERFICIE, Cores.TEXTO_SUAVE) {
             AlertDialog.Builder(this)
                 .setTitle("Apps visíveis para a EDITH")
                 .setMessage(comandos.resumoDescoberta())
                 .setPositiveButton("Fechar", null)
                 .show()
-        }.apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
-            ).apply { topMargin = dp(8) }
         })
-        page.addView(botaoRedondo("Verificar atualização  ⟳", "#0E1524", "#35D6E8", 52) {
+        page.addView(botaoLargo("Verificar atualização  ⟳", Cores.SUPERFICIE, Cores.PRIMARIA) {
             setContentView(homeRoot)
             escrever("EDITH", "⟳ procura atualização")
             verificarAtualizacao()
-        }.apply {
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
-            ).apply { topMargin = dp(24) }
         })
-        setContentView(page)
+        setContentView(rolagem)
     }
 
     private fun pedirChave() = abrirConfiguracoes()
@@ -859,9 +902,11 @@ class MainActivity : Activity() {
     /** Separa a fala da EDITH dos comandos e executa os comandos no aparelho. */
     private fun aplicarResposta(bruto: String) {
         val (limpo, acoes) = ParserAcoes.extrair(bruto)
-        if (limpo.isNotBlank()) {
-            escrever("EDITH", limpo)
-            falar(limpo)
+        // Fala e desenha SÓ o texto limpo: nada de "[[acao]] {json}" na tela nem na voz.
+        val falaLimpa = semRestoDeComando(limpo)
+        if (falaLimpa.isNotBlank()) {
+            escrever("EDITH", falaLimpa)
+            falar(falaLimpa)
         } else if (acoes.isEmpty()) {
             escrever("EDITH", "(não consegui formular uma resposta)")
         }
@@ -903,6 +948,15 @@ class MainActivity : Activity() {
             i++
         }
         return msgs
+    }
+
+    /** Remove qualquer sobra de comando (JSON solto, marcador) antes de falar. */
+    private fun semRestoDeComando(texto: String): String {
+        var t = texto
+        t = t.replace(Regex("\\{\\s*\"acao\"\\s*:.*?\\}", RegexOption.DOT_MATCHES_ALL), " ")
+        t = t.replace(Regex("(?i)\\[\\[?\\s*A[Cc][Aa][Oo]\\s*\\]?\\]"), " ")
+        t = t.replace(Regex("\\s+"), " ")
+        return t.trim()
     }
 
     private fun chamarGroq(key: String): String {

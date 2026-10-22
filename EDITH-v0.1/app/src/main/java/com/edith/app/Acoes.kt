@@ -1,27 +1,47 @@
 package com.edith.app
 
+import android.content.Context
+import android.graphics.Color
 import org.json.JSONObject
 import java.util.Locale
+
+/**
+ * Paleta da EDITH — verde claro, como o usuário pediu.
+ * Um lugar só: mudar de cor aqui muda o app inteiro.
+ */
+object Cores {
+    const val FUNDO = "#F2FBF3"
+    const val SUPERFICIE = "#FFFFFF"
+    const val CARTAO = "#E4F6E6"
+    const val BORDA = "#C3E7C8"
+    const val PRIMARIA = "#3FBF63"
+    const val PRIMARIA_ESCURA = "#1E7A3C"
+    const val TEXTO = "#14261A"
+    const val TEXTO_SUAVE = "#5A7563"
+    const val ALERTA = "#D9822B"
+    const val BOLHA_USUARIO = "#CBEFD4"
+
+    fun cor(hex: String): Int = Color.parseColor(hex)
+}
 
 /** Uma ação pedida pela EDITH, já interpretada a partir do texto do modelo. */
 class Acao(val nome: String, private val dados: JSONObject) {
     fun texto(chave: String): String? = dados.optString(chave, "").takeIf { it.isNotBlank() }
-    internal fun dados(): JSONObject = dados
     fun inteiro(chave: String, padrao: Int = 0): Int = dados.optInt(chave, padrao)
     fun tem(chave: String): Boolean = dados.has(chave)
+    internal fun dados(): JSONObject = dados
+
+    private val parametros = setOf(
+        "acao", "action", "app", "nome", "pacote", "estado", "nivel", "delta", "fluxo",
+        "hora", "label", "segundos", "minutos", "texto", "titulo", "inicio", "termo",
+        "apelido", "destino", "contato", "numero", "mensagem", "termo_busca"
+    )
 
     /**
      * Aceita o formato errado que o modelo às vezes manda: {"abrir_app":"spotify"}.
      * Devolve uma ação com nome válido e o valor guardado como "app".
      */
-    private val parametros = setOf(
-        "acao", "action", "app", "nome", "pacote", "estado", "nivel", "delta", "fluxo",
-        "hora", "label", "segundos", "minutos", "texto", "titulo", "inicio", "termo"
-    )
-
     fun comChaveComoAcao(): Acao {
-        // Só as chaves de texto interessam: chaves numéricas (1, 2...) são índices internos
-        // que o JSONObject do Android também devolve em keys().
         val textos = LinkedHashMap<String, String>()
         val chaves = dados.keys()
         while (chaves.hasNext()) {
@@ -30,8 +50,6 @@ class Acao(val nome: String, private val dados: JSONObject) {
             val valor = dados.opt(chave)
             if (valor is String && valor.isNotBlank()) textos[chave] = valor
         }
-        // A ação é a chave que nomeia um verbo conhecido; qualquer outra chave é parâmetro.
-        // A ordem não serve: o JSONObject do Android não preserva a ordem de inserção.
         val candidata = textos.keys.firstOrNull { it !in parametros } ?: return this
         val valor = textos[candidata] ?: return this
         val novo = JSONObject()
@@ -44,48 +62,50 @@ class Acao(val nome: String, private val dados: JSONObject) {
 
 /**
  * Separa o texto que a EDITH fala dos comandos que o aparelho executa.
- * Não usa nada do Android, então dá para testar fora do celular.
+ * Puro: não usa nada do Android, então roda nos testes do Actions.
  */
 object ParserAcoes {
 
     /**
-     * Marcadores aceitos. Variações existem porque modelo erra formato de vez em quando.
+     * Marcadores aceitos. Variações existem porque o modelo erra o formato de vez em quando.
      *
      * Duas regras que já derrubaram o app uma vez (PatternSyntaxException em Acoes.kt):
      * nada de flag inline (?i)/(?s) — o ICU do Android não aceita; e nada de classe com
      * faixa acentuada tipo [CÇ] — com a flag "i" vira faixa inválida. Por isso os padrões
-     * são montados em tempo de execução, com trechos ASCII e grupos opcionais.
+     * são montados aqui, com trechos ASCII e grupos opcionais.
      */
     private val marcadores: List<Regex> by lazy {
-        // "AÇÃO" / "ACAO" em qualquer caixa: A + (Ç|C) + (Ã|A) + O.
-        // Sem depender da flag IGNORE_CASE para isso — acento e caixa não se misturam no ICU.
+        // "AÇÃO" / "ACAO" em qualquer caixa, sem depender de flag.
         val acao = "[Aa][Cc][Aa][Oo]"
         listOf(
+            // [[ACAO]] {...}  ·  [ACAO] {...}
             regex(
-                "\\[\\[\\s*$acao\\s*\\]\\]\\s*(\\{[^\\n]*})",
+                "\\[\\[?\\s*$acao\\s*\\]?\\]\\s*[:\\-]?\\s*(\\{[^\\n]*})",
                 RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL
             ),
+            // ```json {"acao":...} ```
             regex(
-                "```[a-zA-Z]*\\s*(\\{[^\\n]*\"acao\"[^\\n]*})\\s*```",
+                "```[a-zA-Z]*\\s*(\\{[^\\n]*\\"acao\\"[^\\n]*})\\s*```",
                 RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL
             ),
+            // ACAO: {"acao":...}
             regex("^\\s*$acao\\s*:\\s*(\\{[^\\n]*})\\s*$", RegexOption.MULTILINE),
-            regex("^\\s*(\\{\\s*\"acao\"[^\\n]*})\\s*$", RegexOption.MULTILINE, RegexOption.IGNORE_CASE)
+            // linha só com o JSON
+            regex("^\\s*(\\{\\s*\\"acao\\"[^\\n]*})\\s*$", RegexOption.MULTILINE, RegexOption.IGNORE_CASE),
+            // JSON solto no meio do texto, sem marcador nenhum
+            regex("(\\{\\s*\\"acao\\"\\s*:\\s*\\"[^\\"]+\\"[^\\n}]*})", RegexOption.IGNORE_CASE)
         )
     }
 
-    /** Compila um padrão sem nunca deixar o app cair: um marcador inválido é ignorado. */
     private fun regex(padrao: String, vararg opcoes: RegexOption): Regex = try {
         Regex(padrao, opcoes.toSet())
     } catch (e: Exception) {
-        android.util.Log.e("EDITH-Parser", "Padrão inválido ignorado: $padrao", e)
-        try { Regex("(?!)") } catch (e2: Exception) { Regex("$.^") }
+        Regex("$.^") // nunca casa
     }
 
     fun extrair(resposta: String): Pair<String, List<Acao>> = try {
         extrairSeguro(resposta)
     } catch (e: Exception) {
-        android.util.Log.e("EDITH-Parser", "Falha ao separar ações da resposta", e)
         resposta.trim() to emptyList()
     }
 
@@ -103,11 +123,19 @@ object ParserAcoes {
                 }
             }
         }
-        return texto.trim() to acoes
+        return limparTexto(texto) to acoes
     }
 
+    /** Tira sobras de marcador e linhas vazias do que vai aparecer e ser falado. */
+    private fun limparTexto(texto: String): String = texto
+        .replace(Regex("(?i)\\[\\[?\\s*A[Cc][Aa][Oo]\\s*\\]?\\]"), "")
+        .lines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .joinToString("\n")
+        .trim()
+
     private fun parsear(json: String): Acao? = try {
-        // O modelo às vezes manda {"abrir_app":"spotify"}: a chave é a ação.
         val corrigida = Acao("", JSONObject(json)).comChaveComoAcao()
         val nome = corrigida.texto("acao") ?: corrigida.texto("action")
         if (nome.isNullOrBlank()) null else Acao(nome.trim().lowercase(Locale.ROOT), corrigida.dados())

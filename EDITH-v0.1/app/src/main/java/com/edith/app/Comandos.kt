@@ -29,6 +29,59 @@ class Comandos(
 ) {
 
     private val prefs = activity.getSharedPreferences("edith", Context.MODE_PRIVATE)
+
+    /** Palavras que não ajudam a identificar app ("abre o app do banco"). */
+    private val palavrasVazias = setOf(
+        "abre", "abrir", "app", "aplicativo", "o", "a", "os", "as", "de", "do", "da",
+        "no", "na", "meu", "minha", "para", "pra", "favor", "por"
+    )
+
+    /**
+     * Pacotes que o Android às vezes esconde da consulta pública.
+     * Tentados por último, quando nada bateu pelo nome.
+     */
+    private val pacotesConhecidos = mapOf(
+        "whatsapp" to listOf("com.whatsapp", "com.whatsapp.w4b"),
+        "instagram" to listOf("com.instagram.android"),
+        "spotify" to listOf("com.spotify.music"),
+        "facebook" to listOf("com.facebook.katana"),
+        "messenger" to listOf("com.facebook.orca"),
+        "telegram" to listOf("org.telegram.messenger"),
+        "youtube" to listOf("com.google.android.youtube"),
+        "chrome" to listOf("com.android.chrome"),
+        "gmail" to listOf("com.google.android.gm"),
+        "maps" to listOf("com.google.android.apps.maps"),
+        "mapa" to listOf("com.google.android.apps.maps"),
+        "netflix" to listOf("com.netflix.mediaclient"),
+        "tiktok" to listOf("com.zhiliaoapp.musically", "com.ss.android.ugc.trill"),
+        "twitter" to listOf("com.twitter.android"),
+        "x" to listOf("com.twitter.android"),
+        "uber" to listOf("com.ubercab"),
+        "ifood" to listOf("br.com.brainweb.ifood"),
+        "nubank" to listOf("com.nu.production"),
+        "caixa" to listOf("br.com.gabba.Caixa"),
+        "banco do brasil" to listOf("br.com.bb.android"),
+        "itau" to listOf("com.itau"),
+        "bradesco" to listOf("com.bradesco"),
+        "picpay" to listOf("com.picpay"),
+        "mercado livre" to listOf("com.mercadolibre"),
+        "shopee" to listOf("com.shopee.br"),
+        "kwai" to listOf("com.kwai.video"),
+        "discord" to listOf("com.discord"),
+        "twitch" to listOf("tv.twitch.android.app"),
+        "linkedin" to listOf("com.linkedin.android"),
+        "github" to listOf("com.github.android"),
+        "camera" to listOf("com.sec.android.app.camera", "com.google.android.GoogleCamera"),
+        "galeria" to listOf("com.sec.android.gallery3d", "com.google.android.apps.photos"),
+        "fotos" to listOf("com.google.android.apps.photos", "com.sec.android.gallery3d"),
+        "relogio" to listOf("com.sec.android.app.clockpackage", "com.google.android.deskclock"),
+        "calculadora" to listOf("com.sec.android.app.popupcalculator", "com.google.android.calculator"),
+        "configuracoes" to listOf("com.android.settings"),
+        "telefone" to listOf("com.samsung.android.dialer", "com.google.android.dialer"),
+        "contatos" to listOf("com.samsung.android.app.contacts", "com.google.android.contacts"),
+        "mensagens" to listOf("com.samsung.android.messaging", "com.google.android.apps.messaging"),
+        "play store" to listOf("com.android.vending")
+    )
     private var appsCache: List<Pair<String, String>>? = null
 
     fun executar(acao: Acao): String {
@@ -158,18 +211,36 @@ class Comandos(
             abrirPorPacote(pacote)?.let { return it }
         }
 
-        val porNome = apps.firstOrNull { normalizar(it.first) == alvo }
-            ?: apps.filter { normalizar(it.first).startsWith(alvo) }.minByOrNull { it.first.length }
-            ?: apps.filter { normalizar(it.first).contains(alvo) }.minByOrNull { it.first.length }
+        val palavras = alvo.split(" ").filter { it.length > 1 && it !in palavrasVazias }
+        fun pontos(nome: String): Int {
+            val n = normalizar(nome)
+            if (n == alvo) return 1000
+            var p = 0
+            if (n.startsWith(alvo)) p += 100
+            if (n.contains(alvo)) p += 50
+            p += palavras.count { n.contains(it) } * 10
+            if (palavras.isNotEmpty() && palavras.all { n.contains(it) }) p += 30
+            return p
+        }
+        val porNome = apps
+            .map { it to pontos(it.first) }
+            .filter { it.second > 0 }
+            .maxByOrNull { it.second }
+            ?.first
         val porPacote = apps.firstOrNull {
-            val pacoteNormalizado = normalizar(it.second)
-            pacoteNormalizado == alvo || pacoteNormalizado.endsWith(" $alvo") ||
-                alvo == it.second.lowercase(Locale.ROOT)
+            it.second.lowercase(Locale.ROOT) == alvo || normalizar(it.second) == alvo
         }
 
-        // Resolve qualquer app pelo nome exibido ou pacote descoberto no Android.
-        val escolhido = porNome ?: porPacote
-            ?: return "Não achei nenhum app chamado \"$nomeBruto\". Instalados: ${nomesApps(12)}"
+        // Resolve pelo nome exibido, pelo pacote descoberto ou pela tabela de pacotes conhecidos.
+        val escolhido = porNome ?: porPacote ?: run {
+            val candidatos = pacotesConhecidos[alvo]
+                ?: pacotesConhecidos.entries.firstOrNull { (chave, _) -> alvo.contains(chave) }?.value
+            val aberto = candidatos?.firstNotNullOfOrNull { pacote ->
+                abrirPorPacote(pacote)?.let { it to pacote }
+            }
+            if (aberto != null) return aberto.first
+            null
+        } ?: return "Não achei nenhum app chamado \"$nomeBruto\". Instalados: ${nomesApps(12)}"
 
         val pm = activity.packageManager
         val pacote = escolhido.second
@@ -478,8 +549,9 @@ class Comandos(
     private fun normalizar(txt: String): String {
         val semAcento = Normalizer.normalize(txt, Normalizer.Form.NFD)
             .replace(Regex("\\p{M}+"), "")
+        // Mantém letras, números e ponto (pacotes como com.spotify.music).
         return semAcento.lowercase(Locale.ROOT)
-            .replace(Regex("[^a-z0-9 ]"), " ")
+            .replace(Regex("[^a-z0-9. ]"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
     }
