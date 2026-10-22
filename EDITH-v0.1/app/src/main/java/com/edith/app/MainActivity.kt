@@ -113,14 +113,14 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         instalarCapturaDeFalhas()
-        window.statusBarColor = Cores.FUNDO
-        window.navigationBarColor = Cores.FUNDO
+        window.statusBarColor = Cores.cor(Cores.FUNDO)
+        window.navigationBarColor = Cores.cor(Cores.FUNDO)
         window.decorView.systemUiVisibility = 0
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(12))
-            setBackgroundColor(Cores.FUNDO)
+            setBackgroundColor(Cores.cor(Cores.FUNDO))
         }
         root.setOnApplyWindowInsetsListener { view, insets ->
             view.setPadding(
@@ -152,12 +152,12 @@ class MainActivity : Activity() {
             textSize = 22f
             letterSpacing = 0.06f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(Cores.TEXTO)
+            setTextColor(Cores.cor(Cores.TEXTO))
         }
         val version = TextView(this).apply {
             text = "v0.7.0 · ASSISTENTE PESSOAL"
             textSize = 12f
-            setTextColor(Cores.TEXTO_SUAVE)
+            setTextColor(Cores.cor(Cores.TEXTO_SUAVE))
         }
         heading.addView(title)
         heading.addView(version)
@@ -187,7 +187,7 @@ class MainActivity : Activity() {
         thinkingView = TextView(this).apply {
             text = "EDITH está pensando…"
             textSize = 12f
-            setTextColor(Cores.TEXTO_SUAVE)
+            setTextColor(Cores.cor(Cores.TEXTO_SUAVE))
             visibility = View.GONE
             setPadding(dp(12), dp(8), dp(12), dp(12))
         }
@@ -204,8 +204,8 @@ class MainActivity : Activity() {
             textSize = 15f
             setSingleLine(false)
             maxLines = 4
-            setTextColor(Cores.TEXTO)
-            setHintTextColor(Cores.TEXTO_SUAVE)
+            setTextColor(Cores.cor(Cores.TEXTO))
+            setHintTextColor(Cores.cor(Cores.TEXTO_SUAVE))
             background = forma(Cores.SUPERFICIE, 18, Cores.BORDA)
             setPadding(dp(16), dp(10), dp(16), dp(10))
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
@@ -230,7 +230,7 @@ class MainActivity : Activity() {
         root.addView(TextView(this).apply {
             text = Preferencias.resumo(prefs())
             textSize = 11f
-            setTextColor(Cores.TEXTO_SUAVE)
+            setTextColor(Cores.cor(Cores.TEXTO_SUAVE))
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(0, dp(8), 0, 0)
         })
@@ -278,7 +278,7 @@ class MainActivity : Activity() {
                 text = sugestao
                 textSize = 12f
                 isAllCaps = false
-                setTextColor(Cores.PRIMARIA_ESCURA)
+                setTextColor(Cores.cor(Cores.PRIMARIA_ESCURA))
                 background = forma(Cores.CARTAO, 20, Cores.BORDA)
                 stateListAnimator = null
                 minWidth = 0
@@ -369,12 +369,12 @@ class MainActivity : Activity() {
             text = titulo
             textSize = 15f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(Cores.TEXTO)
+            setTextColor(Cores.cor(Cores.TEXTO))
         })
         textos.addView(TextView(this).apply {
             text = explicacao
             textSize = 12f
-            setTextColor(Cores.TEXTO_SUAVE)
+            setTextColor(Cores.cor(Cores.TEXTO_SUAVE))
             setPadding(0, dp(3), dp(12), 0)
         })
         val chave = android.widget.Switch(this).apply {
@@ -459,7 +459,7 @@ class MainActivity : Activity() {
             val actionText = TextView(this).apply {
                 text = "⚙ Aparelho  ·  $texto"
                 textSize = 12f
-                setTextColor(Cores.TEXTO_SUAVE)
+                setTextColor(Cores.cor(Cores.TEXTO_SUAVE))
             }
             actionRow.addView(actionText)
             bubble.addView(actionRow)
@@ -474,7 +474,7 @@ class MainActivity : Activity() {
             val body = TextView(this).apply {
                 text = texto
                 textSize = 15f
-                setTextColor(Cores.TEXTO)
+                setTextColor(Cores.cor(Cores.TEXTO))
                 setLineSpacing(dp(2).toFloat(), 1f)
             }
             bubble.addView(sender)
@@ -542,7 +542,7 @@ class MainActivity : Activity() {
         val page = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(18), dp(22), dp(32))
-            setBackgroundColor(Cores.FUNDO)
+            setBackgroundColor(Cores.cor(Cores.FUNDO))
         }
         // A tela de ajustes precisa rolar: em tela pequena o botão de salvar sumia.
         val rolagem = ScrollView(this).apply {
@@ -566,12 +566,12 @@ class MainActivity : Activity() {
             text = "Configurações"
             textSize = 23f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(Cores.TEXTO)
+            setTextColor(Cores.cor(Cores.TEXTO))
         })
         heading.addView(TextView(this).apply {
             text = "Personalize sua assistente"
             textSize = 13f
-            setTextColor(Cores.TEXTO_SUAVE)
+            setTextColor(Cores.cor(Cores.TEXTO_SUAVE))
         })
         header.addView(back)
         header.addView(heading)
@@ -581,19 +581,19 @@ class MainActivity : Activity() {
             text = "CONEXÃO COM A IA"
             textSize = 12f
             letterSpacing = 0.12f
-            setTextColor(Cores.PRIMARIA)
+            setTextColor(Cores.cor(Cores.PRIMARIA))
             setPadding(0, dp(34), 0, dp(10))
         })
         page.addView(TextView(this).apply {
             text = "Chave da API Groq"
             textSize = 16f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(Cores.TEXTO)
+            setTextColor(Cores.cor(Cores.TEXTO))
         })
         page.addView(TextView(this).apply {
             text = "Cole sua chave aqui. Ela fica salva localmente neste aparelho."
             textSize = 13f
-            setTextColor(Cores.TEXTO_SUAVE)
+            setTextColor(Cores.cor(Cores.TEXTO_SUAVE))
             setPadding(0, dp(6), 0, dp(12))
         })
         settingsKeyInput = EditText(this).apply {
@@ -601,8 +601,8 @@ class MainActivity : Activity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             setSingleLine(true)
             setText(prefs().getString("key", "") ?: "")
-            setTextColor(Cores.TEXTO)
-            setHintTextColor(Cores.TEXTO_SUAVE)
+            setTextColor(Cores.cor(Cores.TEXTO))
+            setHintTextColor(Cores.cor(Cores.TEXTO_SUAVE))
             background = forma(Cores.SUPERFICIE, 16, Cores.BORDA)
             setPadding(dp(15), dp(14), dp(15), dp(14))
         }
@@ -624,14 +624,14 @@ class MainActivity : Activity() {
         page.addView(TextView(this).apply {
             text = "A chave não deve ser compartilhada. Ela é armazenada nas preferências privadas do aplicativo."
             textSize = 12f
-            setTextColor(Cores.TEXTO_SUAVE)
+            setTextColor(Cores.cor(Cores.TEXTO_SUAVE))
             setPadding(0, dp(12), 0, 0)
         })
         page.addView(TextView(this).apply {
             text = "VOZ E MEMÓRIA"
             textSize = 12f
             letterSpacing = 0.12f
-            setTextColor(Cores.PRIMARIA)
+            setTextColor(Cores.cor(Cores.PRIMARIA))
             setPadding(0, dp(28), 0, dp(10))
         })
         page.addView(interruptor(
@@ -654,7 +654,7 @@ class MainActivity : Activity() {
         page.addView(TextView(this).apply {
             text = memoria.resumo(history)
             textSize = 12f
-            setTextColor(Cores.TEXTO_SUAVE)
+            setTextColor(Cores.cor(Cores.TEXTO_SUAVE))
             setPadding(0, dp(6), 0, dp(10))
         })
         page.addView(botaoLargo("Apagar memória da conversa", Cores.SUPERFICIE, Cores.TEXTO_SUAVE) {
@@ -675,7 +675,7 @@ class MainActivity : Activity() {
             text = "DIAGNÓSTICO"
             textSize = 12f
             letterSpacing = 0.12f
-            setTextColor(Cores.PRIMARIA)
+            setTextColor(Cores.cor(Cores.PRIMARIA))
             setPadding(0, dp(28), 0, dp(10))
         })
         page.addView(botaoLargo("Ver último erro registrado", Cores.SUPERFICIE, Cores.TEXTO_SUAVE) {
