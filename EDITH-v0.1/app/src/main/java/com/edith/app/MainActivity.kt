@@ -83,6 +83,9 @@ class MainActivity : Activity() {
           acessibilidade, notificacoes, bateria, tela, configuracoes)
         - pesquisar: {"acao":"pesquisar","termo":"previsão do tempo"} (abre a busca no navegador)
         - listar_apps: {"acao":"listar_apps"}
+        - meus_apps: {"acao":"meus_apps"} (mostra quantos e quais apps a EDITH consegue ver)
+        - ensinar_app: {"acao":"ensinar_app","apelido":"insta","app":"instagram"}
+          (use quando o usuário disser "quando eu falar X, abre Y")
         - atualizar: {"acao":"atualizar"} (olha no GitHub se saiu versão nova e oferece instalar)
         - versao: {"acao":"versao"}
         Regras: escreva o texto normal para o usuário e o comando em uma linha separada; no máximo 3
@@ -142,7 +145,7 @@ class MainActivity : Activity() {
             setTextColor(Color.parseColor("#E8EEF7"))
         }
         val version = TextView(this).apply {
-            text = "v0.4.3 · ASSISTENTE PESSOAL"
+            text = "v0.5.0 · ASSISTENTE PESSOAL"
             textSize = 12f
             setTextColor(Color.parseColor("#94A3B8"))
         }
@@ -499,6 +502,17 @@ class MainActivity : Activity() {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
             )
         })
+        page.addView(botaoRedondo("Ver apps que a EDITH enxerga", "#0E1524", "#94A3B8", 52) {
+            AlertDialog.Builder(this)
+                .setTitle("Apps visíveis para a EDITH")
+                .setMessage(comandos.resumoDescoberta())
+                .setPositiveButton("Fechar", null)
+                .show()
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
+            ).apply { topMargin = dp(8) }
+        })
         page.addView(botaoRedondo("Verificar atualização  ⟳", "#0E1524", "#35D6E8", 52) {
             setContentView(homeRoot)
             escrever("EDITH", "⟳ procura atualização")
@@ -635,6 +649,11 @@ class MainActivity : Activity() {
             appendLine("Contexto: agora é $agora no aparelho do usuário.")
             appendLine("Você está na versão ${atualizador.versaoAtual()} do app.")
             appendLine("Apps instalados: ${comandos.nomesApps()}")
+            val apelidos = comandos.apelidos()
+            if (apelidos.isNotEmpty()) {
+                appendLine("Apelidos que o usuário ensinou: " +
+                    apelidos.entries.joinToString(", ") { "${it.key} -> ${it.value}" })
+            }
             appendLine()
             append(protocolo)
         }
@@ -756,7 +775,7 @@ class MainActivity : Activity() {
         c.requestMethod = "POST"
         c.setRequestProperty("Authorization", "Bearer $key")
         c.setRequestProperty("Content-Type", "application/json")
-        c.setRequestProperty("User-Agent", "EDITH/0.4.3")
+        c.setRequestProperty("User-Agent", "EDITH/0.5.0")
         c.connectTimeout = 15000
         c.readTimeout = 30000
         c.doOutput = true

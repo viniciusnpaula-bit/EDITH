@@ -59,6 +59,11 @@ class Comandos(
             "pesquisar" -> pesquisar(acao.texto("termo") ?: "")
             "atualizar", "atualizar_app", "verificar_atualizacao", "upgrade" -> aoAtualizar()
             "versao", "versão" -> versao()
+            "ensinar_app", "apelido", "mapear_app" -> ensinar(
+                acao.texto("apelido") ?: acao.texto("nome") ?: "",
+                acao.texto("pacote") ?: acao.texto("app") ?: acao.texto("destino") ?: ""
+            )
+            "meus_apps", "listar_tudo", "diagnostico_apps" -> resumoDescoberta()
             else -> "Não conheço a ação \"${acao.nome}\"."
         }
     } catch (e: Exception) {
@@ -82,15 +87,50 @@ class Comandos(
         appsCache?.let { return it }
         val pm = activity.packageManager
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val lista = pm.queryIntentActivities(intent, 0)
-            .mapNotNull { info ->
+        // No Android 13+ a consulta antiga devolve lista vazia para alguns apps.
+        val encontrados = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.queryIntentActivities(
+                intent,
+                android.content.pm.PackageManager.ResolveInfoFlags.of(0L)
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            pm.queryIntentActivities(intent, 0)
+        }
+        val lista = encontrados
+            .map { info ->
                 val rotulo = info.loadLabel(pm)?.toString()?.trim().orEmpty()
-                if (rotulo.isEmpty()) null else rotulo to info.activityInfo.packageName
+                // Sem rótulo legível ainda dá para abrir pelo pacote.
+                (if (rotulo.isEmpty()) info.activityInfo.packageName else rotulo) to
+                    info.activityInfo.packageName
             }
             .distinctBy { it.second }
             .sortedBy { normalizar(it.first) }
         appsCache = lista
         return lista
+    }
+
+    /** Tudo que o Android deixa a EDITH enxergar, para diagnosticar a descoberta. */
+    fun resumoDescoberta(): String = try {
+        val apps = appsInstalados()
+        val pm = activity.packageManager
+        val falantes = pm.queryIntentActivities(
+            Intent(android.speech.RecognitionService.SERVICE_INTERFACE),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                android.content.pm.PackageManager.ResolveInfoFlags.of(0L) else 0
+        ).mapNotNull { it.serviceInfo?.packageName }.distinct()
+        buildString {
+            appendLine("Apps visíveis para a EDITH: ${apps.size}")
+            if (apps.isEmpty()) {
+                appendLine("Nenhum app com tela inicial foi liberado pelo Android.")
+            } else {
+                appendLine(apps.take(30).joinToString(", ") { it.first })
+            }
+            appendLine("Reconhecimento de voz: ${if (falantes.isEmpty()) "nenhum" else falantes.joinToString(", ")}")
+        }.trim()
+    } catch (e: Exception) {
+        android.util.Log.e("EDITH-Comandos", "Falha no resumo de descoberta", e)
+        "Não consegui consultar o Android: ${e.message ?: e.javaClass.simpleName}"
     }
 
     private fun abrirApp(nomeBruto: String): String {
@@ -106,6 +146,11 @@ class Comandos(
         } catch (e: Exception) {
             android.util.Log.e("EDITH-Comandos", "Falha ao consultar aplicativos lançáveis", e)
             return "Não consegui consultar os aplicativos deste aparelho. Verifique as permissões do sistema e tente novamente."
+        }
+
+        // Apelido que o usuário ensinou ("insta" -> Instagram) vem antes de tudo.
+        apelidos()[alvo]?.let { pacote ->
+            abrirPorPacote(pacote)?.let { return it }
         }
 
         val porNome = apps.firstOrNull { normalizar(it.first) == alvo }
@@ -184,11 +229,49 @@ class Comandos(
         } else {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
             activity.startActivity(intent)
-            "Abrindo $pacote."
+            val rotulo = appsCache?.firstOrNull { it.second == pacote }?.first ?: pacote
+            "Abrindo $rotulo."
         }
     } catch (e: Exception) {
         android.util.Log.e("EDITH-Comandos", "Falha ao abrir o pacote $pacote", e)
         null
+    }
+
+    // ---------- apelidos aprendidos ----------
+
+    /** Apelidos que o usuário ensinou: "insta" -> com.instagram.android. */
+    fun apelidos(): Map<String, String> = try {
+        val bruto = prefs.getString("apelidos", "") ?: ""
+        if (bruto.isBlank()) emptyMap()
+        else bruto.split("\n").mapNotNull { linha ->
+            val partes = linha.split("=", limit = 2)
+            if (partes.size != 2 || partes[1].isBlank()) null
+            else normalizar(partes[0]) to partes[1].trim()
+        }.toMap()
+    } catch (e: Exception) {
+        emptyMap()
+    }
+
+    /** Ensina um apelido. Devolve a confirmação que vai para o chat. */
+    fun ensinar(apelido: String, pacoteOuNome: String): String {
+        val chave = normalizar(apelido)
+        if (chave.isBlank()) return "Não entendi o apelido."
+        val pacote = if (pacoteOuNome.contains(".") && !pacoteOuNome.contains(" ")) {
+            pacoteOuNome.trim()
+        } else {
+            val alvo = normalizar(pacoteOuNome)
+            appsInstalados()
+                .firstOrNull { normalizar(it.first) == alvo }
+                ?.second
+                ?: appsInstalados().firstOrNull { normalizar(it.first).contains(alvo) }?.second
+                ?: return "Não achei nenhum app parecido com \"$pacoteOuNome\" para apelidar."
+        }
+        val atual = apelidos().toMutableMap()
+        atual[chave] = pacote
+        prefs.edit()
+            .putString("apelidos", atual.entries.joinToString("\n") { "${it.key}=${it.value}" })
+            .apply()
+        return "Aprendi: \"$apelido\" abre $pacote."
     }
 
     /** Lista curta de apps instalados, usada no prompt para a EDITH saber o que existe. */
