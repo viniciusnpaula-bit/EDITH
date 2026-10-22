@@ -114,11 +114,16 @@ class Comandos(
     fun resumoDescoberta(): String = try {
         val apps = appsInstalados()
         val pm = activity.packageManager
-        val falantes = pm.queryIntentActivities(
-            Intent(android.speech.RecognitionService.SERVICE_INTERFACE),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                android.content.pm.PackageManager.ResolveInfoFlags.of(0L) else 0
-        ).mapNotNull { it.serviceInfo?.packageName }.distinct()
+        val servicoVoz = Intent(android.speech.RecognitionService.SERVICE_INTERFACE)
+        val falantes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.queryIntentServices(
+                servicoVoz,
+                android.content.pm.PackageManager.ResolveInfoFlags.of(0L)
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            pm.queryIntentServices(servicoVoz, 0)
+        }.mapNotNull { it.serviceInfo?.packageName }.distinct()
         buildString {
             appendLine("Apps visíveis para a EDITH: ${apps.size}")
             if (apps.isEmpty()) {
