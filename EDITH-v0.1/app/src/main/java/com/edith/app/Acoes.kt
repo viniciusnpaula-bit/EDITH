@@ -6,6 +6,7 @@ import java.util.Locale
 /** Uma ação pedida pela EDITH, já interpretada a partir do texto do modelo. */
 class Acao(val nome: String, private val dados: JSONObject) {
     fun texto(chave: String): String? = dados.optString(chave, "").takeIf { it.isNotBlank() }
+    internal fun dados(): JSONObject = dados
     fun inteiro(chave: String, padrao: Int = 0): Int = dados.optInt(chave, padrao)
     fun tem(chave: String): Boolean = dados.has(chave)
 
@@ -106,10 +107,10 @@ object ParserAcoes {
     }
 
     private fun parsear(json: String): Acao? = try {
-        val obj = JSONObject(json)
-        val nome = obj.optString("acao").ifBlank { obj.optString("action") }
-            .trim().lowercase(Locale.ROOT)
-        if (nome.isBlank()) null else Acao(nome, obj)
+        // O modelo às vezes manda {"abrir_app":"spotify"}: a chave é a ação.
+        val corrigida = Acao("", JSONObject(json)).comChaveComoAcao()
+        val nome = corrigida.texto("acao") ?: corrigida.texto("action")
+        if (nome.isNullOrBlank()) null else Acao(nome.trim().lowercase(Locale.ROOT), corrigida.dados())
     } catch (e: Exception) {
         null
     }
