@@ -15,15 +15,15 @@ class VersaoTest {
     }
 
     @Test
-    fun aceitaTagEBuild() {
-        assertTrue(Versao.maisNova("v0.4.1+b11", "0.4.1"))
-        assertFalse(Versao.maisNova("v0.4.1+b11", "0.4.1"))
-        assertTrue(Versao.maisNova("v0.5.0+b12", "0.4.1"))
+    fun ignoraTagESufixoDeBuild() {
+        // A tag da release é "v0.4.3+b12": o build é comparado à parte, não na versão.
+        assertFalse(Versao.maisNova("v0.4.3+b12", "0.4.3"))
+        assertTrue(Versao.maisNova("v0.5.0+b12", "0.4.3"))
     }
 
     @Test
     fun textoVazioNaoEhNovidade() {
-        assertFalse(Versao.maisNova("", "0.4.1"))
-        assertFalse(Versao.maisNova("v", "0.4.1"))
+        assertFalse(Versao.maisNova("", "0.4.3"))
+        assertFalse(Versao.maisNova("v", "0.4.3"))
     }
 }

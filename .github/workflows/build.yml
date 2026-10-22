@@ -25,6 +25,11 @@ jobs:
       # Primeiro os testes: ParserAcoes, Versao e Releases já derrubaram o app no celular.
       - name: Testes
         run: gradle testDebugUnitTest --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: relatorio-testes
+          path: EDITH-v0.1/app/build/reports/tests/testDebugUnitTest
       # Falha aqui (e não no celular) se algum arquivo .kt nem compila.
       - name: Compilar
         run: gradle assembleDebug --no-daemon
