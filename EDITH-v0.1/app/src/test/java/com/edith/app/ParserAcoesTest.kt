@@ -43,7 +43,8 @@ class ParserAcoesTest {
     @Test
     fun aceitaAcaoComoChave() {
         // O modelo às vezes manda {"abrir_app":"spotify"}: a chave é a ação.
-        val (_, acoes) = ParserAcoes.extrair("[[ACAO]] {\"acao\":\"abrir_app\",\"nome\":\"spotify\"}")
+        // O marcador é a própria chave: "abrir_app" (o caso que o modelo manda de vez em quando).
+        val (_, acoes) = ParserAcoes.extrair("[[ACAO]] {\"abrir_app\":\"spotify\"}")
         assertEquals(1, acoes.size)
         val corrigida = acoes[0].comChaveComoAcao()
         assertEquals("abrir_app", corrigida.nome)
