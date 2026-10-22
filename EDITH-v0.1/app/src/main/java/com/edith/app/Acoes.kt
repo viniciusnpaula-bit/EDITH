@@ -77,26 +77,33 @@ object ParserAcoes {
     private val marcadores: List<Regex> by lazy {
         // "AÇÃO" / "ACAO" em qualquer caixa, sem depender de flag.
         val acao = "[Aa][Cc][Aa][Oo]"
+        // Aspas numa constante: evita brigar com o escape dentro de cada padrão.
+        val q = "\""
         listOf(
             // [[ACAO]] {...}  ·  [ACAO] {...}
             regex(
                 "\\[\\[?\\s*$acao\\s*\\]?\\]\\s*[:\\-]?\\s*(\\{[^\\n]*})",
                 RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL
             ),
-            // ```json {"acao":...} ```
+            // bloco de código com JSON
             regex(
-                "```[a-zA-Z]*\\s*(\\{[^\\n]*\\"acao\\"[^\\n]*})\\s*```",
+                "```[a-zA-Z]*\\s*(\\{[^\\n]*$q" + "acao$q[^\\n]*})\\s*```",
                 RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL
             ),
             // ACAO: {"acao":...}
             regex("^\\s*$acao\\s*:\\s*(\\{[^\\n]*})\\s*$", RegexOption.MULTILINE),
             // linha só com o JSON
-            regex("^\\s*(\\{\\s*\\"acao\\"[^\\n]*})\\s*$", RegexOption.MULTILINE, RegexOption.IGNORE_CASE),
+            regex(
+                "^\\s*(\\{\\s*$q" + "acao$q[^\\n]*})\\s*$",
+                RegexOption.MULTILINE, RegexOption.IGNORE_CASE
+            ),
             // JSON solto no meio do texto, sem marcador nenhum
-            regex("(\\{\\s*\\"acao\\"\\s*:\\s*\\"[^\\"]+\\"[^\\n}]*})", RegexOption.IGNORE_CASE)
+            regex(
+                "(\\{\\s*$q" + "acao$q\\s*:\\s*$q[^$q]+$q[^\\n}]*})",
+                RegexOption.IGNORE_CASE
+            )
         )
     }
-
     private fun regex(padrao: String, vararg opcoes: RegexOption): Regex = try {
         Regex(padrao, opcoes.toSet())
     } catch (e: Exception) {
