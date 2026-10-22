@@ -19,24 +19,24 @@ class Acao(val nome: String, private val dados: JSONObject) {
     )
 
     fun comChaveComoAcao(): Acao {
-        // Cópia em memória: o JSONObject do Android não devolve as chaves em ordem previsível.
-        val copia = LinkedHashMap<String, Any?>()
+        // Só as chaves de texto interessam: chaves numéricas (1, 2...) são índices internos
+        // que o JSONObject do Android também devolve em keys().
+        val textos = LinkedHashMap<String, String>()
         val chaves = dados.keys()
         while (chaves.hasNext()) {
             val chave = chaves.next()
-            copia[chave] = dados.opt(chave)
+            if (chave.toIntOrNull() != null) continue
+            val valor = dados.opt(chave)
+            if (valor is String && valor.isNotBlank()) textos[chave] = valor
         }
         // A ação é a chave que nomeia um verbo conhecido; qualquer outra chave é parâmetro.
-        // O JSONObject do Android não guarda a ordem de inserção, então ordem não serve.
-        val candidata = copia.keys.firstOrNull { chave ->
-            chave !in parametros && copia[chave] is String
-        } ?: return this
-        val valor = copia[candidata] as String
-        copia.remove(candidata)
-        copia["acao"] = candidata
-        if (!copia.containsKey("app") && !copia.containsKey("nome")) copia["app"] = valor
+        // A ordem não serve: o JSONObject do Android não preserva a ordem de inserção.
+        val candidata = textos.keys.firstOrNull { it !in parametros } ?: return this
+        val valor = textos[candidata] ?: return this
         val novo = JSONObject()
-        copia.forEach { (chave, v) -> novo.put(chave, v) }
+        textos.forEach { (chave, v) -> if (chave != candidata) novo.put(chave, v) }
+        novo.put("acao", candidata)
+        if (!novo.has("app") && !novo.has("nome")) novo.put("app", valor)
         return Acao(candidata.trim().lowercase(Locale.ROOT), novo)
     }
 }
