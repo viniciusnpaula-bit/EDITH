@@ -67,53 +67,45 @@ class Acao(val nome: String, private val dados: JSONObject) {
 object ParserAcoes {
 
     /**
-     * Marcadores aceitos. Variações existem porque o modelo erra o formato de vez em quando.
-     *
-     * Duas regras que já derrubaram o app uma vez (PatternSyntaxException em Acoes.kt):
-     * nada de flag inline (?i)/(?s) — o ICU do Android não aceita; e nada de classe com
-     * faixa acentuada tipo [CÇ] — com a flag "i" vira faixa inválida. Por isso os padrões
-     * são montados aqui, com trechos ASCII e grupos opcionais.
+     * Padrões compatíveis com java.util.regex.Pattern no Android.
+     * As chaves do JSON são escapadas explicitamente como \\{ e \\}.
+     * Os padrões são compilados de forma preguiçosa, mas erros de sintaxe não
+     * são substituídos por padrões falsos: assim, testes e logs revelam a causa real.
      */
     private val marcadores: List<Regex> by lazy {
-        // "AÇÃO" / "ACAO" em qualquer caixa, sem depender de flag.
         val acao = "[Aa][Cc][Aa][Oo]"
-        // Aspas numa constante: evita brigar com o escape dentro de cada padrão.
-        val q = "\""
         listOf(
-            // [[ACAO]] {...}  ·  [ACAO] {...}
-            regex(
-                "\\[\\[?\\s*$acao\\s*\\]?\\]\\s*[:\\-]?\\s*(\\{[^\\n]*})",
-                RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL
+            // [[ACAO]] {...} ou [ACAO] {...}
+            Regex(
+                """\\[\\[?\\s*$acao\\s*\\]?\\]\\s*[:\\-]?\\s*(\\{[^\\n]*\\})"""
             ),
-            // bloco de código com JSON
-            regex(
-                "```[a-zA-Z]*\\s*(\\{[^\\n]*$q" + "acao$q[^\\n]*})\\s*```",
-                RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL
+            // Bloco de código contendo JSON
+            Regex(
+                """```[a-zA-Z]*\\s*(\\{[^\\n]*"acao"[^\\n]*\\})\\s*```""",
+                RegexOption.IGNORE_CASE
             ),
             // ACAO: {"acao":...}
-            regex("^\\s*$acao\\s*:\\s*(\\{[^\\n]*})\\s*$", RegexOption.MULTILINE),
-            // linha só com o JSON
-            regex(
-                "^\\s*(\\{\\s*$q" + "acao$q[^\\n]*})\\s*$",
+            Regex(
+                """^\\s*$acao\\s*:\\s*(\\{[^\\n]*\\})\\s*$""",
+                RegexOption.MULTILINE
+            ),
+            // Linha contendo apenas o JSON
+            Regex(
+                """^\\s*(\\{\\s*"acao"[^\\n]*\\})\\s*$""",
                 RegexOption.MULTILINE, RegexOption.IGNORE_CASE
             ),
-            // JSON solto no meio do texto, sem marcador nenhum
-            regex(
-                "(\\{\\s*$q" + "acao$q\\s*:\\s*$q[^$q]+$q[^\\n}]*})",
+            // JSON solto no meio de uma frase
+            Regex(
+                """(\\{\\s*"acao"\\s*:\\s*"[^"]+"[^\\n}]*\\})""",
                 RegexOption.IGNORE_CASE
             )
         )
-    }
-    private fun regex(padrao: String, vararg opcoes: RegexOption): Regex = try {
-        Regex(padrao, opcoes.toSet())
-    } catch (e: Exception) {
-        Regex("$.^") // nunca casa
     }
 
     fun extrair(resposta: String): Pair<String, List<Acao>> = try {
         extrairSeguro(resposta)
     } catch (e: Exception) {
-        resposta.trim() to emptyList()
+        throw IllegalStateException("Falha ao interpretar a resposta da EDITH", e)
     }
 
     private fun extrairSeguro(resposta: String): Pair<String, List<Acao>> {
