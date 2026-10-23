@@ -914,7 +914,8 @@ class MainActivity : Activity() {
         val acaoCameraPresente = acoes.any(::eAcaoCamera)
         val falaLimpa = semRestoDeComando(limpo)
         val falaPrometeCamera = falaLimpa.lowercase(Locale("pt", "BR")).let {
-            it.contains("câmera") && (it.contains("abr") || it.contains("inici"))
+            (it.contains("camera") || it.contains("câmera")) &&
+                (it.contains("abr") || it.contains("inici"))
         }
         if (falaLimpa.isNotBlank() && !(falaPrometeCamera && !acaoCameraPresente) &&
             !acaoCameraPresente) {
