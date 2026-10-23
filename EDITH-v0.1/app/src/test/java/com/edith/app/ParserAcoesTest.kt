@@ -69,4 +69,23 @@ class ParserAcoesTest {
         assertEquals("abrir_app", acoes[0].nome)
         assertFalse(texto.contains("\"acao\""))
     }
+
+    @Test
+    fun inicializaTodosOsPadroesELeAbrirCamera() {
+        val (texto, acoes) = ParserAcoes.extrair(
+            """[[ACAO]]{"acao":"abrir_camera"}"""
+        )
+        assertTrue("O texto do comando deve ser removido", texto.isBlank())
+        assertEquals(1, acoes.size)
+        assertEquals("abrir_camera", acoes[0].texto("acao"))
+    }
+
+    @Test
+    fun respostaComumContinuaIntacta() {
+        val resposta = "Olá! Como posso ajudar?"
+        val (texto, acoes) = ParserAcoes.extrair(resposta)
+        assertEquals(resposta, texto)
+        assertTrue(acoes.isEmpty())
+    }
+
 }
