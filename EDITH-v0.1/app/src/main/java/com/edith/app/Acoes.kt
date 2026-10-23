@@ -127,7 +127,7 @@ object ParserAcoes {
 
     /** Tira sobras de marcador e linhas vazias do que vai aparecer e ser falado. */
     private fun limparTexto(texto: String): String = texto
-        .replace(Regex("(?i)\\[\\[?\\s*A[Cc][Aa][Oo]\\s*\\]?\\]"), "")
+        .replace(Regex("""\\[\\[?\\s*A[Cc][Aa][Oo]\\s*\\]?\\]""", RegexOption.IGNORE_CASE), "")
         .lines()
         .map { it.trim() }
         .filter { it.isNotEmpty() }
