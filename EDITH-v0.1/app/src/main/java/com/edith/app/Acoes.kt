@@ -81,7 +81,7 @@ object ParserAcoes {
             ),
             // Bloco de código contendo JSON
             Regex(
-                """\`\`\`[a-zA-Z]*\s*(\{[^\n]*"acao"[^\n]*\})\s*\`\`\`""",
+                "```[a-zA-Z]*\\s*(\\{[^\\n]*\"acao\"[^\\n]*\\})\\s*```",
                 RegexOption.IGNORE_CASE
             ),
             // ACAO: {"acao":...}
