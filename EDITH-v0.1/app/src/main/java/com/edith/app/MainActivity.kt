@@ -903,24 +903,43 @@ class MainActivity : Activity() {
     /** Separa a fala da EDITH dos comandos e executa os comandos no aparelho. */
     private fun aplicarResposta(bruto: String) {
         val (limpo, acoes) = ParserAcoes.extrair(bruto)
-        // Fala e desenha SÓ o texto limpo: nada de "[[acao]] {json}" na tela nem na voz.
+        // Não anuncie que a câmera abriu antes de iniciar a atividade nativa.
+        fun eAcaoCamera(acao: Acao): Boolean {
+            val nome = acao.nome.lowercase(Locale.ROOT)
+            val app = (acao.texto("app") ?: acao.texto("nome") ?: "").lowercase(Locale.ROOT)
+            return nome in setOf("abrir_camera", "camera", "câmera") ||
+                (nome in setOf("abrir_app", "abrir", "abrir_aplicativo") &&
+                    app.contains("camer"))
+        }
+        val acaoCameraPresente = acoes.any(::eAcaoCamera)
         val falaLimpa = semRestoDeComando(limpo)
-        if (falaLimpa.isNotBlank()) {
+        val falaPrometeCamera = falaLimpa.lowercase(Locale("pt", "BR")).let {
+            it.contains("câmera") && (it.contains("abr") || it.contains("inici"))
+        }
+        if (falaLimpa.isNotBlank() && !(falaPrometeCamera && !acaoCameraPresente) &&
+            !acaoCameraPresente) {
             escrever("EDITH", falaLimpa)
             falar(falaLimpa)
-        } else if (acoes.isEmpty()) {
+        } else if (falaPrometeCamera && !acaoCameraPresente) {
+            escrever("EDITH", "Não recebi um comando válido para abrir a câmera. Tente novamente.")
+        } else if (acoes.isEmpty() && falaLimpa.isBlank()) {
             escrever("EDITH", "(não consegui formular uma resposta)")
         }
         for (acao in acoes) {
             val resultado = comandos.executar(acao)
             escrever("⚙ Aparelho", resultado)
-            if (resultado.startsWith("Não consegui abrir") ||
-                resultado.startsWith("Não achei nenhum app chamado")) {
+            // A confirmação da câmera só é mostrada depois que startActivity teve sucesso.
+            if (eAcaoCamera(acao) || resultado.startsWith("Não consegui abrir") ||
+                resultado.startsWith("Não achei nenhum app chamado") ||
+                resultado.startsWith("Falhou (")) {
                 falar(resultado)
             }
             history.put(
                 JSONObject().put("role", "system").put("content", "Resultado do aparelho: $resultado")
             )
+        }
+        if (acaoCameraPresente && falaLimpa.isNotBlank()) {
+            // O resultado real (sucesso ou falha) já foi mostrado acima; não repita o texto da IA.
         }
     }
 
