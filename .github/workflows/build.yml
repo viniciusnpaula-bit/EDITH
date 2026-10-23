@@ -48,8 +48,16 @@ jobs:
           # A tag leva o build: dois commits com a mesma versionName viram releases distintas
           # e o app compara o build para saber se já está atualizado.
           TAG="v$VERSION+b$BUILD"
-          gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk \
-            --title "EDITH $VERSION (build $BUILD)" \
-            --notes "build: $BUILD
+          NOTES="build: $BUILD
 
           APK gerado automaticamente pelo GitHub Actions a partir do commit $GITHUB_SHA."
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG já existe; atualizando o APK."
+            gh release upload "$TAG" app/build/outputs/apk/debug/app-debug.apk --clobber
+            gh release edit "$TAG" --title "EDITH $VERSION (build $BUILD)" --notes "$NOTES"
+          else
+            gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk \
+              --title "EDITH $VERSION (build $BUILD)" \
+              --notes "$NOTES"
+          fi
