@@ -197,23 +197,15 @@ class Comandos(
         val alvo = normalizar(nomeBruto)
         if (alvo.isBlank()) return "Não sei qual app abrir."
         if (alvo in setOf("camera", "camera do celular", "camera fotografica")) return abrirCamera()
-        // Pacote direto (com.spotify.music) não passa pelo Android 11+ sem <queries>.
-        if (nomeBruto.contains(".") && !nomeBruto.contains(" ")) {
-            abrirPorPacote(nomeBruto.trim())?.let { return it }
-        }
 
         val apps = try {
             appsInstalados()
         } catch (e: Exception) {
             android.util.Log.e("EDITH-Comandos", "Falha ao consultar aplicativos lançáveis", e)
-            return "Não consegui consultar os aplicativos deste aparelho. Verifique as permissões do sistema e tente novamente."
+            return "Não consegui consultar os aplicativos deste aparelho."
         }
 
-        // Apelido que o usuário ensinou ("insta" -> Instagram) vem antes de tudo.
-        apelidos()[alvo]?.let { pacote ->
-            abrirPorPacote(pacote)?.let { return it }
-        }
-
+        val pacoteApelido = apelidos()[alvo]
         val palavras = alvo.split(" ").filter { it.length > 1 && it !in palavrasVazias }
         fun pontos(nome: String): Int {
             val n = normalizar(nome)
@@ -225,77 +217,49 @@ class Comandos(
             if (palavras.isNotEmpty() && palavras.all { n.contains(it) }) p += 30
             return p
         }
-        val porNome = apps
-            .map { it to pontos(it.first) }
-            .filter { it.second > 0 }
-            .maxByOrNull { it.second }
-            ?.first
-        val porPacote = apps.firstOrNull {
-            it.second.lowercase(Locale.ROOT) == alvo || normalizar(it.second) == alvo
-        }
 
-        // Resolve pelo nome exibido, pelo pacote descoberto ou pela tabela de pacotes conhecidos.
-        val escolhido = porNome ?: porPacote ?: run {
+        val escolhido = if (pacoteApelido != null) {
+            apps.firstOrNull { it.second == pacoteApelido }
+        } else {
+            apps.map { it to pontos(it.first) }
+                .filter { it.second > 0 }
+                .maxByOrNull { it.second }
+                ?.first
+                ?: apps.firstOrNull { normalizar(it.second) == alvo }
+        } ?: run {
             val candidatos = pacotesConhecidos[alvo]
                 ?: pacotesConhecidos.entries.firstOrNull { (chave, _) -> alvo.contains(chave) }?.value
-            val aberto = candidatos?.firstNotNullOfOrNull { pacote ->
-                abrirPorPacote(pacote)?.let { it to pacote }
-            }
-            if (aberto != null) return aberto.first
-            null
+            val pacote = candidatos?.firstOrNull { candidato -> apps.any { it.second == candidato } }
+            if (pacote != null) apps.firstOrNull { it.second == pacote } else null
         } ?: return "Não achei nenhum app chamado \"$nomeBruto\". Instalados: ${nomesApps(12)}"
 
-        val pm = activity.packageManager
-        val pacote = escolhido.second
-        val flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
-
+        // Método alternativo: inicia diretamente a Activity launcher descoberta,
+        // sem depender de getLaunchIntentForPackage().
         return try {
-            val launchIntent = pm.getLaunchIntentForPackage(pacote)
-            if (launchIntent != null) {
-                launchIntent.addFlags(flags)
-                activity.startActivity(launchIntent)
-                "Abrindo ${escolhido.first}."
-            } else {
-                // Segunda tentativa: resolver a atividade launcher do pacote.
-                val intentPacote = Intent(Intent.ACTION_MAIN).apply {
-                    addCategory(Intent.CATEGORY_LAUNCHER)
-                    setPackage(pacote)
-                    addFlags(flags)
-                }
-                if (intentPacote.resolveActivity(pm) != null) {
-                    activity.startActivity(intentPacote)
-                    "Abrindo ${escolhido.first}."
-                } else {
-                    // Última tentativa: buscar e iniciar o componente launcher explicitamente.
-                    val launcher = pm.queryIntentActivities(
-                        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
-                        0
-                    ).firstOrNull { it.activityInfo.packageName == pacote }
-                        ?: return "Encontrei ${escolhido.first}, mas o Android não disponibilizou uma tela inicial para ele."
+            val pm = activity.packageManager
+            val intentLauncher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            val atividade = pm.queryIntentActivities(intentLauncher, 0)
+                .firstOrNull { it.activityInfo.packageName == escolhido.second }
+                ?: return "O Android não disponibilizou a tela inicial de ${escolhido.first}."
 
-                    val explicito = Intent(Intent.ACTION_MAIN).apply {
-                        addCategory(Intent.CATEGORY_LAUNCHER)
-                        component = android.content.ComponentName(
-                            launcher.activityInfo.packageName,
-                            launcher.activityInfo.name
-                        )
-                        addFlags(flags)
-                    }
-                    activity.startActivity(explicito)
-                    "Abrindo ${escolhido.first}."
-                }
+            val intentExplicito = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
+                component = android.content.ComponentName(
+                    atividade.activityInfo.packageName,
+                    atividade.activityInfo.name
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
             }
+            activity.startActivity(intentExplicito)
+            "Abrindo ${escolhido.first}."
         } catch (e: ActivityNotFoundException) {
-            android.util.Log.e("EDITH-Comandos", "Nenhuma Activity de inicialização para $pacote", e)
-            "Não consegui abrir ${escolhido.first}. Verifique se o app está instalado."
+            android.util.Log.e("EDITH-Comandos", "Activity launcher não encontrada para ${escolhido.second}", e)
+            "Não consegui abrir ${escolhido.first}: o Android não encontrou a tela inicial."
         } catch (e: SecurityException) {
-            android.util.Log.e("EDITH-Comandos", "Permissão negada ao abrir $pacote", e)
-            "Não consegui abrir ${escolhido.first}. Verifique se o app está instalado e habilitado."
-        } catch (e: NullPointerException) {
-            android.util.Log.e("EDITH-Comandos", "Referência nula ao abrir $pacote", e)
-            "Não consegui abrir ${escolhido.first}. O Android não forneceu uma tela de abertura."
+            android.util.Log.e("EDITH-Comandos", "Acesso negado ao abrir ${escolhido.second}", e)
+            "Não consegui abrir ${escolhido.first}: o Android bloqueou a inicialização."
         } catch (e: Exception) {
-            android.util.Log.e("EDITH-Comandos", "Falha ao abrir $pacote", e)
+            android.util.Log.e("EDITH-Comandos", "Falha ao abrir ${escolhido.second}", e)
             "Não consegui abrir ${escolhido.first}: ${e.message ?: e.javaClass.simpleName}."
         }
     }
