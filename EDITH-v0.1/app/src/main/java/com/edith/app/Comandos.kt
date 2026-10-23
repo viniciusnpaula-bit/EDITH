@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.AlarmClock
 import android.provider.CalendarContract
+import android.provider.MediaStore
 import android.provider.Settings
 import java.text.Normalizer
 import java.text.SimpleDateFormat
@@ -97,6 +98,7 @@ class Comandos(
 
     private fun executarSeguro(acao: Acao): String = try {
         when (acao.nome) {
+            "abrir_camera", "camera", "câmera" -> abrirCamera()
             "abrir_app", "abrir", "abrir_aplicativo" -> abrirApp(
                 acao.texto("app") ?: acao.texto("nome") ?: acao.texto("pacote")
                     ?: acao.texto(acao.nome) ?: ""
@@ -194,6 +196,7 @@ class Comandos(
     private fun abrirApp(nomeBruto: String): String {
         val alvo = normalizar(nomeBruto)
         if (alvo.isBlank()) return "Não sei qual app abrir."
+        if (alvo in setOf("camera", "camera do celular", "camera fotografica")) return abrirCamera()
         // Pacote direto (com.spotify.music) não passa pelo Android 11+ sem <queries>.
         if (nomeBruto.contains(".") && !nomeBruto.contains(" ")) {
             abrirPorPacote(nomeBruto.trim())?.let { return it }
@@ -294,6 +297,28 @@ class Comandos(
         } catch (e: Exception) {
             android.util.Log.e("EDITH-Comandos", "Falha ao abrir $pacote", e)
             "Não consegui abrir ${escolhido.first}: ${e.message ?: e.javaClass.simpleName}."
+        }
+    }
+
+    /** Abre o app de câmera do sistema sem solicitar permissão CAMERA. */
+    private fun abrirCamera(): String {
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        return try {
+            if (intent.resolveActivity(activity.packageManager) == null) {
+                return "Não encontrei um aplicativo de câmera disponível neste aparelho."
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            activity.startActivity(intent)
+            "Abrindo a câmera."
+        } catch (e: ActivityNotFoundException) {
+            android.util.Log.e("EDITH-Comandos", "Nenhuma câmera compatível foi encontrada", e)
+            "Não consegui abrir a câmera: o Android não encontrou um aplicativo compatível."
+        } catch (e: SecurityException) {
+            android.util.Log.e("EDITH-Comandos", "Acesso à câmera recusado pelo Android", e)
+            "Não consegui abrir a câmera porque o Android bloqueou a inicialização."
+        } catch (e: Exception) {
+            android.util.Log.e("EDITH-Comandos", "Falha ao iniciar a câmera", e)
+            "Não consegui abrir a câmera: ${e.message ?: e.javaClass.simpleName}."
         }
     }
 
