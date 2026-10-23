@@ -79,6 +79,7 @@ class MainActivity : Activity() {
         Você pode executar ações no celular. Escreva cada comando sozinho em uma linha, exatamente assim:
         [[ACAO]] {"acao":"nome", ...}
         Ações disponíveis:
+        - abrir_camera: {"acao":"abrir_camera"} (abre a câmera do sistema)
         - abrir_app: {"acao":"abrir_app","app":"whatsapp"}
         - lanterna: {"acao":"lanterna","estado":"ligar"} (ou "desligar", "alternar")
         - volume: {"acao":"volume","nivel":30} ou {"acao":"volume","delta":-10} ou {"acao":"volume","estado":"mudo"}
