@@ -92,7 +92,7 @@ object ParserAcoes {
             // Linha contendo apenas o JSON
             Regex(
                 """^\s*(\{\s*"acao"[^\n]*\})\s*$""",
-                RegexOption.MULTILINE, RegexOption.IGNORE_CASE
+                setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)
             ),
             // JSON solto no meio de uma frase
             Regex(
