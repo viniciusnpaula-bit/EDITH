@@ -77,26 +77,26 @@ object ParserAcoes {
         listOf(
             // [[ACAO]] {...} ou [ACAO] {...}
             Regex(
-                """\\[\\[?\\s*$acao\\s*\\]?\\]\\s*[:\\-]?\\s*(\\{[^\\n]*\\})"""
+                """\[\[?\s*$acao\s*\]?\]\s*[:\-]?\s*(\{[^\n]*\})"""
             ),
             // Bloco de código contendo JSON
             Regex(
-                """```[a-zA-Z]*\\s*(\\{[^\\n]*"acao"[^\\n]*\\})\\s*```""",
+                """\`\`\`[a-zA-Z]*\s*(\{[^\n]*"acao"[^\n]*\})\s*\`\`\`""",
                 RegexOption.IGNORE_CASE
             ),
             // ACAO: {"acao":...}
             Regex(
-                """^\\s*$acao\\s*:\\s*(\\{[^\\n]*\\})\\s*$""",
+                """^\s*$acao\s*:\s*(\{[^\n]*\})\s*$""",
                 RegexOption.MULTILINE
             ),
             // Linha contendo apenas o JSON
             Regex(
-                """^\\s*(\\{\\s*"acao"[^\\n]*\\})\\s*$""",
+                """^\s*(\{\s*"acao"[^\n]*\})\s*$""",
                 RegexOption.MULTILINE, RegexOption.IGNORE_CASE
             ),
             // JSON solto no meio de uma frase
             Regex(
-                """(\\{\\s*"acao"\\s*:\\s*"[^"]+"[^\\n}]*\\})""",
+                """(\{\s*"acao"\s*:\s*"[^"]+"[^\n}]*\})""",
                 RegexOption.IGNORE_CASE
             )
         )
