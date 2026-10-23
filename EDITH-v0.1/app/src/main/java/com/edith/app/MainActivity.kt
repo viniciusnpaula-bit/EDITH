@@ -911,7 +911,7 @@ class MainActivity : Activity() {
                 (nome in setOf("abrir_app", "abrir", "abrir_aplicativo") &&
                     app.contains("camer"))
         }
-        val acaoCameraPresente = acoes.any(::eAcaoCamera)
+        val acaoCameraPresente = acoes.any { eAcaoCamera(it) }
         val falaLimpa = semRestoDeComando(limpo)
         val falaPrometeCamera = falaLimpa.lowercase(Locale("pt", "BR")).let {
             (it.contains("camera") || it.contains("câmera")) &&
